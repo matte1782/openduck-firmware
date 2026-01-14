@@ -1,0 +1,137 @@
+# Servo Limits Configuration - OpenDuck Mini V3
+# WARNING: Do not modify unless you understand mechanical constraints
+
+# Servo hardware: Feetech STS3215
+# Protocol: Half-duplex UART (via FE-URT-1 USB adapter)
+# Voltage: 7.4V (2S Li-ion)
+# Torque: 19 kg·cm @ 7.4V
+
+# Default servo parameters
+defaults:
+  speed: 300          # Default movement speed (0-1023)
+  acceleration: 50    # Acceleration profile
+  torque_limit: 800   # Torque limit (0-1023)
+  punch: 32           # Minimum PWM for movement
+
+# Leg configuration
+# Each leg has 4 joints: hip, upper (thigh), lower (shin), ankle
+# Angles in degrees, 0-360 range (STS3215 uses 0-4095 = 0-360°)
+
+legs:
+  front_left:
+    hip:
+      id: 1
+      neutral: 180     # Neutral position (degrees)
+      min: 135         # Minimum angle
+      max: 225         # Maximum angle
+      inverted: false
+    upper:
+      id: 2
+      neutral: 180
+      min: 90
+      max: 270
+      inverted: false
+    lower:
+      id: 3
+      neutral: 180
+      min: 45
+      max: 315
+      inverted: false
+    ankle:
+      id: 4
+      neutral: 180
+      min: 90
+      max: 270
+      inverted: false
+
+  front_right:
+    hip:
+      id: 5
+      neutral: 180
+      min: 135
+      max: 225
+      inverted: true   # Mirrored from left side
+    upper:
+      id: 6
+      neutral: 180
+      min: 90
+      max: 270
+      inverted: true
+    lower:
+      id: 7
+      neutral: 180
+      min: 45
+      max: 315
+      inverted: true
+    ankle:
+      id: 8
+      neutral: 180
+      min: 90
+      max: 270
+      inverted: true
+
+  rear_left:
+    hip:
+      id: 9
+      neutral: 180
+      min: 135
+      max: 225
+      inverted: false
+    upper:
+      id: 10
+      neutral: 180
+      min: 90
+      max: 270
+      inverted: false
+    lower:
+      id: 11
+      neutral: 180
+      min: 45
+      max: 315
+      inverted: false
+    ankle:
+      id: 12
+      neutral: 180
+      min: 90
+      max: 270
+      inverted: false
+
+  rear_right:
+    hip:
+      id: 13
+      neutral: 180
+      min: 135
+      max: 225
+      inverted: true
+    upper:
+      id: 14
+      neutral: 180
+      min: 90
+      max: 270
+      inverted: true
+    lower:
+      id: 15
+      neutral: 180
+      min: 45
+      max: 315
+      inverted: true
+    ankle:
+      id: 16
+      neutral: 180
+      min: 90
+      max: 270
+      inverted: true
+
+# Arm servos (MG90S) - Optional, for future arm attachment
+arms:
+  enabled: false
+  # left_shoulder:
+  #   id: 17
+  #   ...
+
+# Safety limits
+safety:
+  max_speed: 600           # Never exceed this speed
+  min_voltage: 6.0         # Shutdown below this voltage (V)
+  max_temperature: 70      # Servo temp warning threshold (°C)
+  emergency_stop_id: null  # Reserved for e-stop servo ID

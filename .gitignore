@@ -1,0 +1,173 @@
+# OpenDuck Mini V3 Firmware - Git Ignore Rules
+
+# ============================================================
+# PYTHON
+# ============================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# ============================================================
+# VIRTUAL ENVIRONMENTS
+# ============================================================
+
+venv/
+ENV/
+env/
+.venv
+
+# ============================================================
+# IDE / EDITORS
+# ============================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================================
+# OPERATING SYSTEM
+# ============================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ============================================================
+# PROJECT SPECIFIC
+# ============================================================
+
+# Configuration (may contain secrets, hardware-specific settings)
+config/*.local.yaml
+config/*.secret.yaml
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Data files
+data/
+*.csv
+*.json  # Unless explicitly needed
+
+# Hardware test outputs
+test_outputs/
+calibration_data/
+
+# Temporary files
+tmp/
+temp/
+
+# Backup files
+*.bak
+*.backup
+
+# ============================================================
+# DOCUMENTATION BUILD
+# ============================================================
+
+# Sphinx documentation
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# ============================================================
+# JUPYTER NOTEBOOKS (if used)
+# ============================================================
+
+.ipynb_checkpoints/
+*.ipynb  # Comment this out if you want to track notebooks
+
+# ============================================================
+# RASPBERRY PI SPECIFIC
+# ============================================================
+
+# System files (if accidentally included)
+*.img
+*.iso
+
+# ============================================================
+# SECURITY
+# ============================================================
+
+# Never commit these
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
+
+# SSH keys (if accidentally in repo)
+id_rsa
+id_rsa.pub
+
+# API keys
+api_keys.txt
+*.secret

@@ -1,0 +1,97 @@
+# OpenDuck Mini V3 Firmware - Python Dependencies
+# Week 01 Development Environment
+# Target: Raspberry Pi 4 Model B, Python 3.9+
+
+# ============================================================
+# CORE RASPBERRY PI LIBRARIES
+# ============================================================
+
+# GPIO Control
+RPi.GPIO==0.7.1
+
+# I2C Communication
+smbus2==0.4.2
+
+# Adafruit Hardware Libraries
+adafruit-circuitpython-pca9685==3.4.5    # PCA9685 16-channel PWM driver
+adafruit-circuitpython-neopixel==6.3.8   # WS2812B LED control
+adafruit-circuitpython-bno08x==1.2.4     # BNO085 IMU (arriving next week)
+
+# NeoPixel Alternative (lower-level)
+rpi-ws281x==5.0.0
+
+# ============================================================
+# AUDIO (I2S)
+# ============================================================
+
+# Audio playback/recording (MAX98357A + INMP441)
+# Note: Requires system packages: libportaudio2
+# Install: sudo apt install libportaudio2
+# pyaudio==0.2.13  # Commented - install when testing audio
+
+# ============================================================
+# MATHEMATICAL LIBRARIES
+# ============================================================
+
+# Numerical computing (kinematics, control)
+numpy==1.24.3
+
+# Scientific computing (trajectory planning)
+# scipy==1.10.1  # Commented - add when implementing advanced control
+
+# ============================================================
+# CONFIGURATION MANAGEMENT
+# ============================================================
+
+# YAML configuration files
+pyyaml==6.0.1
+
+# Environment variables
+python-dotenv==1.0.0
+
+# ============================================================
+# DEVELOPMENT & TESTING
+# ============================================================
+
+# Testing Framework
+pytest==7.4.3
+pytest-cov==4.1.0          # Coverage reporting
+pytest-mock==3.12.0        # Mocking support
+
+# Code Quality
+black==23.11.0             # Code formatter
+pylint==3.0.2              # Linter
+mypy==1.7.1                # Type checker
+
+# ============================================================
+# UTILITIES
+# ============================================================
+
+# Logging (if needed beyond Python logging)
+# colorlog==6.8.0  # Commented - add if want colored logs
+
+# Serial communication (for FE-URT-1 when it arrives)
+# pyserial==3.5  # Commented - add when STS3215 servos arrive
+
+# ============================================================
+# NOTES
+# ============================================================
+
+# Week 01 Development Focus:
+# - Core drivers (PCA9685, WS2812B, HC-SR04)
+# - Basic kinematics (numpy sufficient)
+# - Testing infrastructure (pytest)
+
+# Week 02+ Additions:
+# - pyserial (STS3215 servo control via FE-URT-1)
+# - scipy (advanced trajectory planning)
+# - pyaudio (audio system testing)
+
+# Installation:
+# pip install -r requirements.txt
+
+# System Dependencies (Raspberry Pi):
+# sudo apt update
+# sudo apt install -y python3-pip python3-dev
+# sudo apt install -y i2c-tools  # For i2cdetect
+# sudo apt install -y libportaudio2  # For audio (when needed)

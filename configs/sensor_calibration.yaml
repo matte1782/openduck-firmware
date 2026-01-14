@@ -1,0 +1,111 @@
+# Sensor Calibration - OpenDuck Mini V3
+
+# IMU: Adafruit BNO085
+imu:
+  type: BNO085
+  i2c_address: 0x4A
+  calibration_status: uncalibrated  # uncalibrated, partial, full
+
+  # Calibration offsets (set after calibration procedure)
+  accelerometer:
+    offset_x: 0.0
+    offset_y: 0.0
+    offset_z: 0.0
+    scale_x: 1.0
+    scale_y: 1.0
+    scale_z: 1.0
+
+  gyroscope:
+    offset_x: 0.0
+    offset_y: 0.0
+    offset_z: 0.0
+
+  magnetometer:
+    offset_x: 0.0
+    offset_y: 0.0
+    offset_z: 0.0
+
+  # Mounting orientation relative to robot frame
+  mounting:
+    roll_offset: 0.0    # degrees
+    pitch_offset: 0.0   # degrees
+    yaw_offset: 0.0     # degrees
+
+# Ultrasonic sensors: HC-SR04
+ultrasonic:
+  sensors:
+    front:
+      id: 1
+      gpio_trigger: 17
+      gpio_echo: 27
+      offset_mm: 0       # Distance offset calibration
+      max_range_mm: 4000
+      min_range_mm: 20
+    left:
+      id: 2
+      gpio_trigger: 22
+      gpio_echo: 23
+      offset_mm: 0
+      max_range_mm: 4000
+      min_range_mm: 20
+    right:
+      id: 3
+      gpio_trigger: 24
+      gpio_echo: 25
+      offset_mm: 0
+      max_range_mm: 4000
+      min_range_mm: 20
+
+  # Timing parameters
+  pulse_width_us: 10
+  timeout_ms: 100
+  measurement_interval_ms: 50
+
+# Foot contact sensors: Limit switches KW11-3Z
+foot_sensors:
+  front_left:
+    gpio: 5
+    pull_up: true
+    active_low: true
+  front_right:
+    gpio: 6
+    pull_up: true
+    active_low: true
+  rear_left:
+    gpio: 13
+    pull_up: true
+    active_low: true
+  rear_right:
+    gpio: 26
+    pull_up: true
+    active_low: true
+
+# Audio: INMP441 microphone + MAX98357A amplifier
+audio:
+  microphone:
+    type: INMP441
+    interface: I2S
+    sample_rate: 16000
+    bit_depth: 16
+    gain: 1.0
+
+  speaker:
+    type: MAX98357A
+    interface: I2S
+    sample_rate: 44100
+    volume: 0.8  # 0.0 - 1.0
+
+# Camera: Raspberry Pi AI Camera (IMX500)
+camera:
+  enabled: true
+  resolution: [1280, 720]
+  framerate: 30
+  rotation: 0  # 0, 90, 180, 270
+
+# Battery monitoring (via ADC if available)
+battery:
+  enabled: false
+  # adc_channel: 0
+  # voltage_divider_ratio: 3.0
+  # low_voltage_threshold: 6.5
+  # critical_voltage_threshold: 6.0
