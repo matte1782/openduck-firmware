@@ -356,8 +356,9 @@ class ServoController:
 
             # SAFETY: Check if channel was disabled (emergency stop)
             # Check after each move and before sleep to abort quickly
-            if not self.driver.channels[channel]['enabled']:
-                break  # Abort sweep immediately if emergency stop called
+            with self.driver._lock:
+                if not self.driver.channels[channel]['enabled']:
+                    break  # Abort sweep immediately if emergency stop called
 
             # Break sleep into smaller chunks to check for emergency stop more frequently
             # This ensures we abort within ~10ms instead of waiting full delay period
@@ -368,7 +369,8 @@ class ServoController:
                 remaining_delay -= chunk_delay
 
                 # SAFETY: Check again during sleep for immediate abort
-                if not self.driver.channels[channel]['enabled']:
-                    return  # Abort immediately
+                with self.driver._lock:
+                    if not self.driver.channels[channel]['enabled']:
+                        return  # Abort immediately
 
             current += step_size * direction

@@ -23,7 +23,7 @@ Li-ion batteries contain flammable electrolyte. Mishandling causes fires.
 
 ### If Battery Is Smoking/Hot:
 1. **DO NOT TOUCH** - Use non-conductive tongs or heat-resistant gloves (200°C rated minimum)
-2. **Move to fireproof container** - Metal ammo box, ceramic pot, or metal bucket with dry sand (NOT plastic containers, NOT water)
+2. **Move to fireproof container** - Metal ammo box, ceramic pot, or metal bucket with dry sand or vermiculite (NOT plastic containers, NOT water)
 3. **Evacuate area** - Li-ion fire releases toxic fumes
 4. **Call emergency services** - Explain it's a lithium battery fire
 5. **Use Class D fire extinguisher** - Standard ABC extinguishers won't work on lithium fires
@@ -167,6 +167,11 @@ This document does not constitute professional safety advice. Li-ion batteries a
 **ADULT USE ONLY:** This project is intended for adults 18+ with electrical safety training. Children must never handle Li-ion batteries unsupervised.
 
 **COMPLIANCE:** Users are responsible for compliance with local regulations, including UN38.3 (transport), IEC 62133 (safety), and UL1642 (lithium battery safety) standards.
+
+**GOVERNING LAW:** This disclaimer and all safety warnings are governed by
+the laws of Italy. Any disputes shall be resolved in Italian courts under
+Italian jurisdiction. For users outside Italy, local consumer protection laws
+and product liability regulations may supersede this disclaimer.
 
 **When in doubt: STOP, ask for help, and consult experts.**
 

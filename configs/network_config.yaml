@@ -1,0 +1,131 @@
+# Network configuration for OpenDuck Mini V3 Raspberry Pi
+# Copy this file to network_config.yaml and fill in your credentials
+# WARNING: This file contains sensitive information - DO NOT commit to version control
+
+# WiFi Configuration
+wifi:
+  # Replace with your WiFi network name
+  ssid: "YOUR_WIFI_SSID"
+
+  # Replace with your WiFi password
+  password: "YOUR_WIFI_PASSWORD"
+
+  # Country code for WiFi regulatory compliance
+  # Common codes: US, GB, DE, FR, IT, ES, CA, AU, JP, CN
+  country: "IT"  # Italy WiFi regulations
+
+  # Optional: Priority for multiple networks (higher = preferred)
+  priority: 10
+
+  # Optional: Hidden network (set to true if your SSID is not broadcast)
+  hidden: false
+
+# Optional: Multiple WiFi networks (robot will connect to strongest available)
+# wifi_networks:
+#   - ssid: "HOME_NETWORK"
+#     password: "home_password"
+#     country: "IT"
+#     priority: 10
+#   - ssid: "MOBILE_HOTSPOT"
+#     password: "mobile_password"
+#     country: "IT"
+#     priority: 5
+
+# Hostname Configuration
+hostname: "openduck"  # Accessible as openduck.local via mDNS
+
+# SSH Configuration (Remote Access)
+ssh:
+  enabled: true  # Enable SSH for remote access
+  port: 22       # Default SSH port (change for security)
+
+  # Security recommendations:
+  # - Use key-based authentication (disable password auth)
+  # - Change default port to non-standard (e.g., 2222)
+  # - Use fail2ban to prevent brute force attacks
+
+  # Optional: SSH key-based authentication
+  # authorized_keys:
+  #   - "ssh-rsa AAAAB3... your-public-key-here"
+
+# mDNS (Bonjour/Avahi) - Zero-configuration networking
+mdns:
+  enabled: true           # Enable mDNS for openduck.local access
+  name: "openduck.local"  # Fully qualified domain name
+
+  # Services to advertise via mDNS
+  services:
+    - type: "_ssh._tcp"
+      port: 22
+    - type: "_http._tcp"
+      port: 80  # If web interface is implemented
+
+# Static IP Configuration (Optional)
+# Recommended for production deployments to avoid DHCP issues
+# static_ip:
+#   enabled: false
+#   ip_address: "192.168.1.100"
+#   netmask: "255.255.255.0"
+#   gateway: "192.168.1.1"
+#   dns_servers:
+#     - "8.8.8.8"      # Google DNS
+#     - "1.1.1.1"      # Cloudflare DNS
+
+# Network Time Protocol (NTP)
+# Required for accurate timestamps in logs
+ntp:
+  enabled: true
+  servers:
+    - "pool.ntp.org"
+    - "time.nist.gov"
+  timezone: "Europe/Rome"  # Italy timezone
+
+# Firewall Configuration
+# Security best practice: Only allow required ports
+firewall:
+  enabled: true
+  default_policy: "DROP"  # Drop all traffic except allowed
+
+  # Allowed incoming connections
+  allow_incoming:
+    - port: 22
+      protocol: "tcp"
+      description: "SSH access"
+
+  # Allow all outgoing connections (for updates, NTP, etc.)
+  allow_outgoing: "all"
+
+# Network Monitoring
+monitoring:
+  # Log network events
+  log_connections: true
+  log_path: "/var/log/openduck/network.log"
+
+  # Connection timeout for failed WiFi
+  connection_timeout_sec: 30
+
+  # Retry failed connections
+  max_retries: 3
+  retry_interval_sec: 10
+
+# Advanced: Access Point Mode (Fallback)
+# If WiFi connection fails, create an access point for emergency access
+# ap_fallback:
+#   enabled: true
+#   ssid: "OpenDuck-Setup"
+#   password: "openduck123"  # Change this!
+#   channel: 6
+#   ip_address: "192.168.4.1"
+#   netmask: "255.255.255.0"
+
+# Security Notes:
+# 1. This file contains sensitive credentials - add to .gitignore
+# 2. Change default passwords immediately
+# 3. Use WPA3 encryption if supported by your router
+# 4. Disable SSH password authentication (use keys only)
+# 5. Keep Raspberry Pi OS updated for security patches
+# 6. Monitor logs for suspicious activity
+
+# Configuration version
+config_version: "1.0"
+last_updated: "2026-01-15"

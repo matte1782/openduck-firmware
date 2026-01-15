@@ -239,8 +239,8 @@ class TestBNO085ThreadSafety:
         def try_acquire_during_read():
             """Try to acquire lock while IMU is reading."""
             read_started.wait()  # Wait for read to start
-            # Try to acquire - should block if read holds it
-            locked = bus_manager._bus_lock.locked()
+            # Try to check if locked - RLock doesn't have .locked() method, use is_locked() instead
+            locked = bus_manager.is_locked()
             if locked:
                 lock_acquired.set()
 

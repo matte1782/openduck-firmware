@@ -1,0 +1,111 @@
+# Safety configuration for OpenDuck Mini V3
+# WARNING: These settings prevent hardware damage and fires - DO NOT modify without understanding implications
+# Last updated: 15 January 2026
+
+battery:
+  # Voltage thresholds (2S LiPo: 7.4V nominal, 8.4V max, 6.0V min)
+  min_voltage: 6.0  # Volts - critical shutdown threshold (prevent over-discharge)
+  low_voltage: 6.4  # Volts - warning threshold (reserve capacity)
+  max_voltage: 8.4  # Volts - 2S LiPo fully charged (4.2V per cell)
+  max_current: 30   # Amps - P30B discharge limit (30A continuous)
+
+  # Charging safety (if charging circuit is implemented)
+  charge_max_voltage: 8.4  # Volts - never exceed 4.2V per cell
+  charge_max_current: 2.2  # Amps - 1C charge rate for 2200mAh battery
+  charge_timeout_minutes: 90  # Maximum charge duration
+
+  # Temperature monitoring
+  max_temp_c: 60  # Celsius - LiPo max safe operating temperature
+  min_temp_c: 0   # Celsius - LiPo min safe operating temperature
+  temp_warning_c: 45  # Celsius - warning threshold for preventive action
+
+servos:
+  # Angular limits (PCA9685 + MG90S servos)
+  max_angle: 180    # degrees - hardware maximum
+  min_angle: 0      # degrees - hardware minimum
+  default_center: 90  # degrees - neutral position
+
+  # Safety features
+  emergency_stop_latency_ms: 5  # Hardware sleep mode response time
+  max_speed_deg_per_sec: 180    # Maximum rotation speed (prevents mechanical stress)
+  min_pulse_width_us: 500       # Microseconds - minimum PWM pulse
+  max_pulse_width_us: 2500      # Microseconds - maximum PWM pulse
+
+  # Thermal protection
+  max_operating_temp_c: 80      # Maximum servo motor temperature
+
+  # Current limits (per servo)
+  max_current_stall_ma: 900     # Milliamps - stall current for MG90S
+  max_current_no_load_ma: 220   # Milliamps - typical no-load current
+
+imu:
+  # MPU6050 configuration
+  max_sample_rate_hz: 100       # Maximum sensor polling rate
+  calibration_required: true    # Must calibrate before first use
+
+  # Accelerometer limits (for impact detection)
+  max_acceleration_g: 8         # G-force - if exceeded, trigger emergency stop
+
+  # Gyroscope limits (for rollover detection)
+  max_angular_velocity_deg_s: 500  # Degrees per second
+
+  # Calibration timeouts
+  calibration_samples: 1000     # Number of samples for calibration
+  calibration_timeout_sec: 30   # Maximum calibration time
+
+thermal:
+  # Component temperature limits
+  max_battery_temp_c: 60        # LiPo maximum operating temperature
+  max_servo_temp_c: 80          # PCA9685 and servo motors maximum temp
+  max_cpu_temp_c: 80            # Raspberry Pi Zero 2W thermal throttling
+  max_ambient_temp_c: 40        # Maximum safe ambient temperature for operation
+
+  # Warning thresholds (for preventive action)
+  battery_warning_temp_c: 45
+  servo_warning_temp_c: 65
+  cpu_warning_temp_c: 70
+
+  # Monitoring frequency
+  temp_check_interval_sec: 5    # How often to check temperatures
+  thermal_runaway_rate_c_per_sec: 2  # If temp rises this fast, emergency stop
+
+emergency_stop:
+  # Emergency stop behavior
+  gpio_pin: 17                  # GPIO pin for emergency stop button (BCM numbering)
+  trigger_active_low: true      # Button press pulls pin to ground
+  debounce_ms: 50               # Debounce time to prevent false triggers
+
+  # Automatic emergency stop conditions
+  enable_auto_stop: true        # Enable automatic emergency stop on critical conditions
+  conditions:
+    - battery_under_voltage     # Trigger on battery < min_voltage
+    - battery_over_temp         # Trigger on battery > max_battery_temp_c
+    - servo_over_current        # Trigger on servo current > max_current_stall_ma
+    - imu_impact                # Trigger on acceleration > max_acceleration_g
+    - thermal_runaway           # Trigger on rapid temperature increase
+
+power_management:
+  # Power-saving features
+  idle_timeout_sec: 300         # Enter low-power mode after 5 minutes of inactivity
+  sleep_voltage_threshold: 6.8  # Enter sleep mode if battery below this when idle
+
+  # Startup checks
+  require_voltage_check: true   # Must check battery voltage before enabling servos
+  require_imu_calibration: true # Must calibrate IMU before motion
+
+  # Graceful shutdown
+  shutdown_warning_sec: 30      # Seconds of warning before forced shutdown
+  save_state_on_shutdown: true  # Save robot state before shutdown
+
+# Hardware version compatibility
+hardware_version: "v3.0"
+config_version: "1.0"
+compatible_firmware_versions:
+  - "1.0.x"
+  - "1.1.x"
+
+# Notes:
+# - These values are based on component datasheets and safety margins
+# - Exceeding these limits may cause fires, explosions, or equipment damage
+# - See SAFETY_WARNINGS.md for detailed safety information
+# - Calibrate sensors before relying on automatic safety features

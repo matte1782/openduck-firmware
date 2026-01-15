@@ -180,11 +180,15 @@ class I2CBusManager:
     def is_locked(self) -> bool:
         """Check if bus is currently locked.
 
-        Returns True if any thread (including the current thread) holds the lock.
-        This indicates an active bus operation is in progress.
+        WARNING: Result may be stale immediately after return due to
+        Time-Of-Check-Time-Of-Use (TOCTTOU) race condition.
+
+        This method is for informational/debugging purposes only.
+        DO NOT use for synchronization decisions.
 
         Returns:
-            bool: True if bus lock is held, False otherwise
+            bool: True if bus is currently locked, False otherwise.
+                  Note: Value may change before caller can act on it.
         """
         with self._lock_count_lock:
             return I2CBusManager._lock_count > 0

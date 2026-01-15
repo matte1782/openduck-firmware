@@ -148,7 +148,7 @@ sudo i2cdetect -y 1
 ### Firmware Installation (Run on Pi):
 ```bash
 cd ~
-git clone https://github.com/YOUR_USERNAME/robot_jarvis.git
+git clone https://github.com/matte1782/robot_jarvis.git
 cd robot_jarvis/firmware
 pip3 install -r requirements.txt
 python3 examples/servo_test.py
