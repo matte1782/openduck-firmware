@@ -1,0 +1,272 @@
+# OpenDuck Mini V3 - Robot Configuration
+# Servo mappings, kinematics parameters, safety settings
+
+# =================================================================
+# SERVO MAPPING - MG90S (Week 01 Testing)
+# =================================================================
+servos:
+  # MG90S servos for testing (5 total)
+  mg90s:
+    type: "MG90S"
+    voltage_range: [4.8, 6.0]  # Volts
+    torque_kg_cm: 2.2  # @ 6V
+    speed_60deg_sec: 0.08  # @ 6V, no load
+
+    # Servo assignments for Week 01 testing
+    test_servos:
+      # 2-DOF arm testing
+      arm_shoulder:
+        channel: 0  # PCA9685 channel 0
+        min_angle: 0
+        max_angle: 180
+        home_angle: 90
+        inverted: false
+
+      arm_elbow:
+        channel: 1  # PCA9685 channel 1
+        min_angle: 0
+        max_angle: 180
+        home_angle: 90
+        inverted: false
+
+      # Additional test servos
+      test_1:
+        channel: 2
+        min_angle: 0
+        max_angle: 180
+        home_angle: 90
+
+      test_2:
+        channel: 3
+        min_angle: 0
+        max_angle: 180
+        home_angle: 90
+
+      test_3:
+        channel: 4
+        min_angle: 0
+        max_angle: 180
+        home_angle: 90
+
+# =================================================================
+# SERVO MAPPING - STS3215 (Future - 16 servos for quadruped)
+# =================================================================
+  sts3215:
+    type: "Feetech STS3215"
+    voltage_range: [6.0, 8.4]  # Volts
+    torque_kg_cm: 20  # @ 7.4V
+    protocol: "UART/TTL"
+    controller: "FE-URT-1"
+    enabled: false  # Enable when servos arrive
+
+    # Leg servo mapping (4 legs × 3 DOF = 12 servos)
+    legs:
+      # Front Right leg
+      front_right:
+        hip:
+          id: 0  # Serial bus ID
+          min_angle: -45
+          max_angle: 45
+          home_angle: 0
+
+        shoulder:
+          id: 1
+          min_angle: -90
+          max_angle: 90
+          home_angle: 0
+
+        knee:
+          id: 2
+          min_angle: -135
+          max_angle: 0
+          home_angle: -90
+
+      # Front Left leg
+      front_left:
+        hip:
+          id: 3
+          min_angle: -45
+          max_angle: 45
+          home_angle: 0
+
+        shoulder:
+          id: 4
+          min_angle: -90
+          max_angle: 90
+          home_angle: 0
+
+        knee:
+          id: 5
+          min_angle: -135
+          max_angle: 0
+          home_angle: -90
+
+      # Rear Right leg
+      rear_right:
+        hip:
+          id: 6
+          min_angle: -45
+          max_angle: 45
+          home_angle: 0
+
+        shoulder:
+          id: 7
+          min_angle: -90
+          max_angle: 90
+          home_angle: 0
+
+        knee:
+          id: 8
+          min_angle: -135
+          max_angle: 0
+          home_angle: -90
+
+      # Rear Left leg
+      rear_left:
+        hip:
+          id: 9
+          min_angle: -45
+          max_angle: 45
+          home_angle: 0
+
+        shoulder:
+          id: 10
+          min_angle: -90
+          max_angle: 90
+          home_angle: 0
+
+        knee:
+          id: 11
+          min_angle: -135
+          max_angle: 0
+          home_angle: -90
+
+    # Auxiliary servos (4 remaining channels)
+    aux:
+      head_pan:
+        id: 12
+        min_angle: -90
+        max_angle: 90
+        home_angle: 0
+
+      head_tilt:
+        id: 13
+        min_angle: -45
+        max_angle: 45
+        home_angle: 0
+
+      tail_wag:
+        id: 14
+        min_angle: -60
+        max_angle: 60
+        home_angle: 0
+
+      spare:
+        id: 15
+        enabled: false
+
+# =================================================================
+# 2-DOF ARM KINEMATICS (Week 01 Testing)
+# =================================================================
+kinematics:
+  arm_2dof:
+    enabled: true
+
+    # Link lengths (millimeters)
+    l1: 80.0  # Shoulder to elbow
+    l2: 60.0  # Elbow to end effector
+
+    # Workspace limits
+    workspace:
+      min_reach: 20.0  # mm
+      max_reach: 140.0  # mm (L1 + L2)
+      min_z: -100.0  # mm
+      max_z: 100.0  # mm
+
+    # IK solver settings
+    solver:
+      method: "analytical"  # geometric, analytical, or iterative
+      max_iterations: 50  # For iterative solver
+      tolerance: 0.1  # mm
+
+# =================================================================
+# 3-DOF LEG KINEMATICS (Future - when STS3215 arrive)
+# =================================================================
+  leg_3dof:
+    enabled: false
+
+    # Link lengths (millimeters)
+    l1: 50.0  # Hip to shoulder
+    l2: 80.0  # Shoulder to knee
+    l3: 100.0  # Knee to foot
+
+    # Workspace limits
+    workspace:
+      min_x: -100.0
+      max_x: 100.0
+      min_y: -50.0
+      max_y: 50.0
+      min_z: -150.0
+      max_z: 50.0
+
+# =================================================================
+# GAIT PARAMETERS (Future)
+# =================================================================
+gaits:
+  trot:
+    enabled: false
+    step_height: 30.0  # mm
+    stride_length: 80.0  # mm
+    frequency: 1.0  # Hz
+    duty_factor: 0.5  # Fraction of cycle in stance
+
+  crawl:
+    enabled: false
+    step_height: 20.0
+    stride_length: 50.0
+    frequency: 0.5
+    duty_factor: 0.75
+
+# =================================================================
+# SAFETY PARAMETERS
+# =================================================================
+safety:
+  # Emergency stop
+  emergency_stop:
+    enabled: true
+    latency_ms: 100  # Maximum response time
+    action: "disable_all_servos"
+
+  # Current limiting
+  current_limit:
+    enabled: true
+    max_total_ma: 3000
+    max_servo_concurrent: 3
+    measurement_interval_ms: 100
+
+  # Servo protection
+  servo_protection:
+    max_temperature_c: 70  # Servo overheating threshold
+    max_continuous_run_sec: 10  # Max time at stall
+    check_interval_ms: 1000
+
+  # Collision detection
+  collision_detection:
+    enabled: false  # Enable when IMU available
+    accel_threshold_g: 3.0
+    angular_threshold_deg_s: 300.0
+
+# =================================================================
+# NOTES
+# =================================================================
+# Week 01 Focus:
+# - MG90S servos (2-DOF arm testing)
+# - PCA9685 driver validation
+# - Basic kinematics (arm IK)
+# - Safety systems (e-stop, current limiting)
+#
+# Week 02+ Additions:
+# - STS3215 servos (full quadruped)
+# - 3-DOF leg kinematics
+# - Gait generation
+# - Balance control (with IMU)

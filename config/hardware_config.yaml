@@ -1,0 +1,148 @@
+# OpenDuck Mini V3 - Hardware Configuration
+# Raspberry Pi 4 GPIO pins, I2C addresses, PWM settings
+
+# =================================================================
+# RASPBERRY PI MODEL
+# =================================================================
+raspberry_pi:
+  model: "Pi 4 Model B"
+  ram: "4GB"
+  os: "Raspbian OS Lite 64-bit"
+
+# =================================================================
+# I2C DEVICES
+# =================================================================
+i2c:
+  bus: 1  # I2C bus number (default for Pi 4)
+
+  # PCA9685 16-channel PWM driver
+  pca9685:
+    address: 0x40  # Default I2C address
+    frequency: 50  # Hz (standard for servos)
+    channels: 16
+
+    # Pin connections
+    sda_pin: 2  # GPIO 2 (Physical pin 3)
+    scl_pin: 3  # GPIO 3 (Physical pin 5)
+    vcc: "5V"   # Power rail
+    gnd: "GND"
+
+  # BNO085 9-DOF IMU (arriving next week)
+  bno085:
+    address: 0x4A  # Default I2C address
+    enabled: false  # Set true when hardware arrives
+
+    # Pin connections
+    sda_pin: 2  # Shared I2C bus
+    scl_pin: 3
+    int_pin: 17  # GPIO 17 for interrupt (optional)
+    rst_pin: 27  # GPIO 27 for reset (optional)
+
+# =================================================================
+# GPIO PINS
+# =================================================================
+gpio:
+  # WS2812B NeoPixel LED Rings
+  neopixel:
+    # Primary LED ring (16 LEDs)
+    ring_1:
+      data_pin: 10  # GPIO 10 (SPI0 MOSI, Physical pin 19)
+      num_leds: 16
+      brightness: 0.5  # 0.0-1.0
+
+    # Secondary LED ring (16 LEDs)
+    ring_2:
+      data_pin: 12  # GPIO 12 (PWM0, Physical pin 32)
+      num_leds: 16
+      brightness: 0.5
+
+  # HC-SR04 Ultrasonic Sensors
+  ultrasonic:
+    # Front sensor
+    sensor_1:
+      trigger_pin: 23  # GPIO 23 (Physical pin 16)
+      echo_pin: 24     # GPIO 24 (Physical pin 18)
+      max_distance_cm: 400
+
+    # Left sensor
+    sensor_2:
+      trigger_pin: 25  # GPIO 25 (Physical pin 22)
+      echo_pin: 8      # GPIO 8 (Physical pin 24)
+      max_distance_cm: 400
+
+    # Right sensor
+    sensor_3:
+      trigger_pin: 7   # GPIO 7 (Physical pin 26)
+      echo_pin: 1      # GPIO 1 (Physical pin 28)
+      max_distance_cm: 400
+
+  # Emergency Stop Button
+  emergency_stop:
+    pin: 21  # GPIO 21 (Physical pin 40)
+    pull: "up"  # Internal pull-up resistor
+    active: "low"  # Button press = LOW
+    debounce_ms: 50
+
+# =================================================================
+# I2S AUDIO
+# =================================================================
+i2s:
+  # MAX98357A Audio Amplifier
+  max98357a:
+    enabled: true
+
+    # I2S pin connections
+    bclk_pin: 18  # Bit clock (GPIO 18, Physical pin 12)
+    lrclk_pin: 19  # Left/Right clock (GPIO 19, Physical pin 35)
+    din_pin: 21   # Data in (GPIO 21, Physical pin 40)
+
+    # Amplifier settings
+    gain_db: 15  # Gain setting (3, 6, 9, 12, 15 dB)
+
+  # INMP441 MEMS Microphone
+  inmp441:
+    enabled: false  # Enable when testing audio
+
+    # I2S pin connections (shared bus with amplifier)
+    bclk_pin: 18
+    lrclk_pin: 19
+    dout_pin: 20  # Data out (GPIO 20, Physical pin 38)
+
+    # Microphone settings
+    sample_rate: 44100  # Hz
+    bit_depth: 32  # bits
+
+# =================================================================
+# SPI (Reserved for future expansion)
+# =================================================================
+spi:
+  bus: 0
+  # Reserved for displays, additional sensors
+
+# =================================================================
+# POWER MANAGEMENT
+# =================================================================
+power:
+  # Voltage monitoring (ADS1115 ADC - not in current BOM)
+  voltage_monitoring:
+    enabled: false  # Will enable when ADS1115 added
+
+  # Current limits (software enforced)
+  current_limits:
+    total_ma: 3000  # Total system limit (UBEC 3A rating)
+    logic_ma: 1200  # Pi + sensors + LED nominal
+    servo_ma: 1800  # Available for servos
+    max_servos_concurrent: 3  # Safety limit
+
+# =================================================================
+# NOTES
+# =================================================================
+# Pin Usage Summary:
+# - I2C (GPIO 2, 3): PCA9685, BNO085
+# - I2S (GPIO 18, 19, 20, 21): Audio amp + microphone
+# - SPI MOSI (GPIO 10): NeoPixel ring 1
+# - PWM0 (GPIO 12): NeoPixel ring 2
+# - Ultrasonic (GPIO 1, 7, 8, 23, 24, 25): 3× HC-SR04 sensors
+# - E-stop (GPIO 21): Emergency stop button
+#
+# Available for expansion: GPIO 4, 5, 6, 9, 11, 13, 14, 15, 16, 22, 26, 27
