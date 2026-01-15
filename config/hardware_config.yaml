@@ -78,7 +78,7 @@ gpio:
 
   # Emergency Stop Button
   emergency_stop:
-    pin: 21  # GPIO 21 (Physical pin 40)
+    pin: 26  # GPIO 26 (Physical pin 37) - moved from GPIO 21 to avoid I2S conflict
     pull: "up"  # Internal pull-up resistor
     active: "low"  # Button press = LOW
     debounce_ms: 50
@@ -143,6 +143,6 @@ power:
 # - SPI MOSI (GPIO 10): NeoPixel ring 1
 # - PWM0 (GPIO 12): NeoPixel ring 2
 # - Ultrasonic (GPIO 1, 7, 8, 23, 24, 25): 3× HC-SR04 sensors
-# - E-stop (GPIO 21): Emergency stop button
+# - E-stop (GPIO 26): Emergency stop button
 #
-# Available for expansion: GPIO 4, 5, 6, 9, 11, 13, 14, 15, 16, 22, 26, 27
+# Available for expansion: GPIO 4, 5, 6, 9, 11, 13, 14, 15, 16, 22, 27
