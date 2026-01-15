@@ -1,7 +1,10 @@
-"""PCA9685 16-Channel PWM Driver for Servo Control
+"""PCA9685 16-Channel PWM Driver for Servo Control - I2C Bus Manager Integration
 
 This module provides a hardware abstraction layer for the PCA9685 PWM controller,
-commonly used for controlling multiple servos in robotics applications.
+with integrated I2C bus manager to prevent bus collisions with other I2C devices.
+
+**CRITICAL FIX**: Uses I2CBusManager singleton to prevent I2C bus collisions
+between PCA9685 and BNO085 IMU sensor.
 
 Hardware:
     - Adafruit PCA9685 16-Channel 12-bit PWM/Servo Driver
@@ -28,26 +31,22 @@ except ImportError:
     busio = None
     PCA9685 = None
 
-# Import I2C Bus Manager for thread-safe bus access
+# Import I2C bus manager for thread-safe bus access
 from ..i2c_bus_manager import I2CBusManager
 
 
 class PCA9685Driver:
-    """Driver for PCA9685 16-channel PWM controller.
+    """Driver for PCA9685 16-channel PWM controller with I2C bus manager integration.
 
     Provides servo control with angle-to-PWM conversion, frequency management,
-    and multi-servo coordination capabilities.
-
-    Thread Safety:
-        All public methods are thread-safe and can be called concurrently from
-        multiple threads. Uses a single lock to protect hardware I2C access and
-        internal channel state modifications.
+    and multi-servo coordination capabilities. Uses I2CBusManager singleton to
+    prevent I2C bus collisions.
 
     Attributes:
-        i2c: I2C bus instance
+        bus_manager: I2C bus manager singleton instance
         pca: PCA9685 controller instance
         frequency: PWM frequency in Hz (default: 50Hz for servos)
-        channels: Dictionary tracking channel states (protected by lock)
+        channels: Dictionary tracking channel states
     """
 
     # PWM pulse width constants (in microseconds)
@@ -61,17 +60,12 @@ class PCA9685Driver:
         frequency: int = 50,
         i2c_bus: Optional[int] = 1
     ):
-        """Initialize PCA9685 driver.
-
-        BUG #3 FIX: Now uses I2CBusManager for thread-safe initialization.
-        This prevents race conditions when multiple PCA9685 instances are
-        created simultaneously or when initialization occurs concurrently
-        with other I2C device operations (e.g., BNO085 IMU reads).
+        """Initialize PCA9685 driver with I2C bus manager.
 
         Args:
             address: I2C address of PCA9685 (default: 0x40)
             frequency: PWM frequency in Hz (default: 50Hz for servos)
-            i2c_bus: I2C bus number (default: 1 for Raspberry Pi, deprecated)
+            i2c_bus: I2C bus number (default: 1 for Raspberry Pi) - DEPRECATED, uses bus manager
 
         Raises:
             RuntimeError: If I2C communication fails
@@ -80,10 +74,7 @@ class PCA9685Driver:
         self.address = address
         self.frequency = frequency
         self.channels = {}  # Track channel states
-        self._lock = threading.RLock()  # Reentrant lock allows nested acquisitions by same thread
-
-        # Get I2C Bus Manager singleton for coordinated bus access
-        self.bus_manager = I2CBusManager.get_instance()
+        self._lock = threading.Lock()  # Thread safety for channel state access
 
         # Initialize I2C and PCA9685
         if board is None or busio is None or PCA9685 is None:
@@ -93,24 +84,22 @@ class PCA9685Driver:
             )
 
         try:
-            # CRITICAL FIX (BUG #3): Use I2CBusManager instead of creating independent bus
-            # This prevents race conditions during initialization
-            with self.bus_manager.acquire_bus() as i2c_bus_instance:
-                # Initialize PCA9685 on managed bus
-                self.pca = PCA9685(i2c_bus_instance, address=address)
+            # Get I2C bus manager singleton (prevents multiple bus instances)
+            self.bus_manager = I2CBusManager.get_instance()
+
+            # Initialize PCA9685 using shared bus
+            # Bus locking handled by acquire_bus() context manager during operations
+            with self.bus_manager.acquire_bus() as bus:
+                self.pca = PCA9685(bus, address=address)
                 self.pca.frequency = frequency
 
                 # Initialize all channels to safe state (off)
-                # This happens under bus lock protection
                 for channel in range(16):
                     self.pca.channels[channel].duty_cycle = 0
                     self.channels[channel] = {
                         'angle': None,
                         'enabled': False
                     }
-
-            # Store bus reference for backward compatibility (deprecated)
-            self.i2c = self.bus_manager.get_bus()
 
         except Exception as e:
             raise RuntimeError(f"Failed to initialize PCA9685 at 0x{address:02x}: {e}")
@@ -129,8 +118,8 @@ class PCA9685Driver:
         if not 0 <= channel <= 15:
             raise ValueError(f"Channel must be 0-15, got {channel}")
 
-        # Thread-safe hardware access
-        with self._lock:
+        # Thread-safe hardware access with I2C bus locking
+        with self.bus_manager.acquire_bus():
             # Convert to duty cycle (0-65535)
             duty_cycle = int((off / 4095) * 65535)
             self.pca.channels[channel].duty_cycle = duty_cycle
@@ -153,19 +142,20 @@ class PCA9685Driver:
         if not 0 <= angle <= 180:
             raise ValueError(f"Angle must be 0-180°, got {angle}")
 
-        # Thread-safe hardware and state modification
-        with self._lock:
-            # Convert angle to pulse width (microseconds)
-            pulse_width = self._angle_to_pulse(angle)
+        # Convert angle to pulse width (microseconds)
+        pulse_width = self._angle_to_pulse(angle)
 
-            # Convert pulse width to PWM duty cycle
-            pulse_length = 1_000_000 // self.frequency  # Period in microseconds
-            duty_cycle = int((pulse_width / pulse_length) * 65535)
+        # Convert pulse width to PWM duty cycle
+        pulse_length = 1_000_000 // self.frequency  # Period in microseconds
+        duty_cycle = int((pulse_width / pulse_length) * 65535)
 
+        # Thread-safe hardware access with I2C bus locking
+        with self.bus_manager.acquire_bus():
             # Set PWM
             self.pca.channels[channel].duty_cycle = duty_cycle
 
-            # Update channel state
+        # Update channel state (separate lock for state management)
+        with self._lock:
             self.channels[channel]['angle'] = angle
             self.channels[channel]['enabled'] = True
 
@@ -195,10 +185,11 @@ class PCA9685Driver:
         if not 0 <= channel <= 15:
             raise ValueError(f"Channel must be 0-15, got {channel}")
 
-        # Thread-safe hardware access
-        with self._lock:
-            pulse_length = 1_000_000 // self.frequency
-            duty_cycle = int((pulse_us / pulse_length) * 65535)
+        pulse_length = 1_000_000 // self.frequency
+        duty_cycle = int((pulse_us / pulse_length) * 65535)
+
+        # Thread-safe hardware access with I2C bus locking
+        with self.bus_manager.acquire_bus():
             self.pca.channels[channel].duty_cycle = duty_cycle
 
     def disable_channel(self, channel: int) -> None:
@@ -210,9 +201,12 @@ class PCA9685Driver:
         if not 0 <= channel <= 15:
             raise ValueError(f"Channel must be 0-15, got {channel}")
 
-        # Thread-safe hardware and state modification
-        with self._lock:
+        # Thread-safe hardware access with I2C bus locking
+        with self.bus_manager.acquire_bus():
             self.pca.channels[channel].duty_cycle = 0
+
+        # Update channel state
+        with self._lock:
             self.channels[channel]['enabled'] = False
 
     def disable_all(self) -> None:
@@ -221,25 +215,25 @@ class PCA9685Driver:
         SAFETY CRITICAL: Uses hardware sleep mode for <5ms shutdown.
         Fallback to individual channel disable if sleep mode unavailable.
         """
-        # Thread-safe emergency shutdown
-        with self._lock:
+        # Thread-safe emergency shutdown with I2C bus locking
+        with self.bus_manager.acquire_bus():
             # SAFETY: Use hardware sleep mode for instant shutdown (<5ms)
             try:
                 if hasattr(self.pca, 'sleep'):
                     self.pca.sleep()
-                    # Update all channel states
-                    for channel in range(16):
-                        self.channels[channel]['enabled'] = False
                 else:
-                    # Fallback: disable channels individually (lock already held)
+                    # Fallback: disable channels individually
                     for channel in range(16):
                         self.pca.channels[channel].duty_cycle = 0
-                        self.channels[channel]['enabled'] = False
             except Exception:
-                # Last resort: disable channels individually (lock already held)
+                # Last resort: disable channels individually
                 for channel in range(16):
                     self.pca.channels[channel].duty_cycle = 0
-                    self.channels[channel]['enabled'] = False
+
+        # Update all channel states
+        with self._lock:
+            for channel in range(16):
+                self.channels[channel]['enabled'] = False
 
     def get_channel_state(self, channel: int) -> dict:
         """Get current state of a channel.
@@ -260,7 +254,8 @@ class PCA9685Driver:
     def deinit(self) -> None:
         """Deinitialize driver and disable all channels."""
         self.disable_all()
-        self.pca.deinit()
+        with self.bus_manager.acquire_bus():
+            self.pca.deinit()
 
 
 class ServoController:
@@ -353,22 +348,5 @@ class ServoController:
         current = int(start)
         while (direction > 0 and current <= int(end)) or (direction < 0 and current >= int(end)):
             self.move_servo(channel, current)
-
-            # SAFETY: Check if channel was disabled (emergency stop)
-            # Check after each move and before sleep to abort quickly
-            if not self.driver.channels[channel]['enabled']:
-                break  # Abort sweep immediately if emergency stop called
-
-            # Break sleep into smaller chunks to check for emergency stop more frequently
-            # This ensures we abort within ~10ms instead of waiting full delay period
-            remaining_delay = delay
-            while remaining_delay > 0:
-                chunk_delay = min(0.01, remaining_delay)  # Check every 10ms
-                time.sleep(chunk_delay)
-                remaining_delay -= chunk_delay
-
-                # SAFETY: Check again during sleep for immediate abort
-                if not self.driver.channels[channel]['enabled']:
-                    return  # Abort immediately
-
+            time.sleep(delay)
             current += step_size * direction

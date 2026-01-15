@@ -9,11 +9,16 @@ sensors, and audio system.
 Key strategies:
 1. Limit max concurrent moving servos to 3 (keeps peak <2.72A)
 2. Detect servo stalls and timeout after 300ms
-3. Monitor 5V rail voltage via ADC
+3. Monitor 5V rail voltage via ADC (REQUIRES EXTERNAL ADC HARDWARE)
 4. Sequential movement patterns instead of parallel
+
+⚠️ CRITICAL SAFETY NOTE: Voltage monitoring requires real ADC hardware
+   (ADS1115 or MCP3008). GPIO pins CANNOT measure analog voltage directly.
+   Voltage monitoring is DISABLED by default for safety.
 
 Author: Claude Sonnet 4.5
 Date: 2026-01-14
+Updated: 2026-01-15 (Fixed dangerous fake GPIO voltage monitoring)
 License: MIT
 """
 
@@ -37,9 +42,12 @@ VOLTAGE_WARNING_THRESHOLD = 4.5  # Volts, trigger load reduction
 VOLTAGE_CRITICAL_THRESHOLD = 4.3  # Volts, emergency stop
 VOLTAGE_CHECK_INTERVAL_S = 0.5  # Check voltage every 500ms
 
-# GPIO for voltage monitoring (via divider: 5V → 3.3V)
-VOLTAGE_MONITOR_PIN = 26  # GPIO26, ADC-capable
-VOLTAGE_DIVIDER_RATIO = 5.5 / 3.3  # R1=2.2kΩ, R2=3.3kΩ
+# ⚠️ REMOVED DANGEROUS FAKE GPIO VOLTAGE MONITORING
+# GPIO pins CANNOT measure analog voltage - they only read digital HIGH/LOW
+# Real voltage monitoring requires external ADC hardware:
+#   - ADS1115 (16-bit I2C ADC, ~$10)
+#   - MCP3008 (10-bit SPI ADC, ~$4)
+# See documentation at end of file for implementation guide.
 
 
 class PowerManager:
@@ -49,17 +57,25 @@ class PowerManager:
     Features:
     - Current limiting (max 3 concurrent moving servos)
     - Stall detection (timeout after 300ms)
-    - Voltage monitoring (warn at 4.5V, emergency at 4.3V)
+    - Voltage monitoring (DISABLED by default - requires external ADC)
     - Movement queuing (defer movements if at limit)
+
+    ⚠️ SAFETY: Voltage monitoring is DISABLED by default because it requires
+               external ADC hardware. GPIO pins cannot measure analog voltage.
     """
 
-    def __init__(self, pwm_controller, enable_voltage_monitoring=True):
+    def __init__(self, pwm_controller, enable_voltage_monitoring=False):
         """
         Initialize power manager.
 
         Args:
             pwm_controller: PCA9685 PWM controller instance
-            enable_voltage_monitoring: Enable ADC voltage monitoring (requires pigpio)
+            enable_voltage_monitoring: Enable voltage monitoring (REQUIRES external
+                                     ADC hardware like ADS1115 or MCP3008).
+                                     Default: False (safe default)
+
+        ⚠️ CRITICAL: Setting enable_voltage_monitoring=True without proper ADC
+                    hardware will fail safely with a warning.
         """
         self.pwm = pwm_controller
         self.enable_voltage_monitor = enable_voltage_monitoring
@@ -85,24 +101,15 @@ class PowerManager:
         self.voltage_warnings = 0
         self.emergency_mode = False
 
+        # ⚠️ REMOVED FAKE GPIO VOLTAGE MONITORING
+        # Voltage monitoring now requires proper ADC hardware setup
         if self.enable_voltage_monitor:
-            self._setup_voltage_monitoring()
-            self._start_voltage_thread()
-
-    def _setup_voltage_monitoring(self):
-        """Setup GPIO for voltage monitoring via ADC."""
-        try:
-            import pigpio
-            self.pi_gpio = pigpio.pi()
-            if not self.pi_gpio.connected:
-                print("⚠️ Warning: pigpio daemon not running, voltage monitoring disabled")
-                self.enable_voltage_monitor = False
-            else:
-                self.pi_gpio.set_mode(VOLTAGE_MONITOR_PIN, pigpio.INPUT)
-                print("✅ Voltage monitoring enabled on GPIO26")
-        except ImportError:
-            print("⚠️ Warning: pigpio not installed, voltage monitoring disabled")
+            print("⚠️ WARNING: Voltage monitoring requested but no ADC hardware configured!")
+            print("   GPIO pins CANNOT measure analog voltage.")
+            print("   Please connect ADS1115 or MCP3008 ADC and configure properly.")
+            print("   Voltage monitoring has been DISABLED for safety.")
             self.enable_voltage_monitor = False
+            # TODO: Add proper ADC hardware support (see end of file for guide)
 
     def _start_voltage_thread(self):
         """Start background thread for continuous voltage monitoring."""
@@ -119,30 +126,26 @@ class PowerManager:
         Check 5V rail voltage via ADC.
 
         Returns:
-            float: Current 5V rail voltage
+            float: Current 5V rail voltage (5.0V nominal if monitoring disabled)
+
+        ⚠️ NOTE: Always returns 5.0V because voltage monitoring is disabled.
+                Real implementation requires external ADC hardware.
         """
         if not self.enable_voltage_monitor:
-            return 5.0  # Assume nominal if monitoring disabled
+            return 5.0  # Nominal voltage (monitoring disabled without ADC)
 
-        try:
-            # Read ADC (10-bit, 0-1023 for 0-3.3V)
-            adc_value = self.pi_gpio.read(VOLTAGE_MONITOR_PIN)
-            voltage_gpio = (adc_value / 1023.0) * 3.3
-            voltage_5v = voltage_gpio * VOLTAGE_DIVIDER_RATIO
+        # ⚠️ REMOVED DANGEROUS FAKE GPIO VOLTAGE READING
+        # GPIO.read() only returns digital HIGH/LOW, not analog voltage!
+        # This code has been removed to prevent false confidence.
+        #
+        # Real ADC implementation would look like:
+        #   voltage = self.adc.read_adc(channel=0) * voltage_divider_ratio
+        #   if voltage < VOLTAGE_CRITICAL_THRESHOLD:
+        #       self._emergency_shutdown()
+        #
+        # For implementation guide, see documentation at end of file.
 
-            self.current_voltage = voltage_5v
-
-            # Check thresholds
-            if voltage_5v < VOLTAGE_CRITICAL_THRESHOLD:
-                self._emergency_shutdown()
-            elif voltage_5v < VOLTAGE_WARNING_THRESHOLD:
-                self._voltage_warning()
-
-            return voltage_5v
-
-        except Exception as e:
-            print(f"⚠️ Voltage monitoring error: {e}")
-            return 5.0
+        return 5.0  # Safe default
 
     def _voltage_warning(self):
         """Handle voltage sag warning."""
@@ -441,8 +444,8 @@ if __name__ == "__main__":
     pwm = PCA9685(address=0x40, busnum=1)
     pwm.set_pwm_freq(50)  # 50Hz for servos
 
-    # Initialize power manager
-    power_mgr = PowerManager(pwm, enable_voltage_monitoring=True)
+    # Initialize power manager (voltage monitoring disabled - requires ADC hardware)
+    power_mgr = PowerManager(pwm, enable_voltage_monitoring=False)
 
     # Initialize arm controller
     arms = ArmController(power_mgr)
@@ -480,3 +483,154 @@ if __name__ == "__main__":
 
     print("\n✅ Demo complete! Single 3A UBEC handled all movements safely.")
     print("   Peak current stayed <2.72A thanks to movement limiting.")
+
+
+# =============================================================================
+# HOW TO ADD REAL VOLTAGE MONITORING (ADC Hardware Required)
+# =============================================================================
+"""
+⚠️ CRITICAL: GPIO pins CANNOT measure analog voltage!
+
+This module previously contained DANGEROUS fake voltage monitoring that used
+GPIO pins to "read" voltage. GPIO pins only read digital HIGH/LOW states,
+not analog voltages. This code has been REMOVED.
+
+To add real voltage monitoring, you MUST use external ADC hardware:
+
+## Option 1: ADS1115 (Recommended - High Precision)
+- 16-bit resolution, I2C interface
+- Cost: ~$10
+- Library: Adafruit_ADS1x15
+- Wiring:
+    VDD  → 3.3V (Pi)
+    GND  → GND
+    SCL  → GPIO 3 (I2C SCL)
+    SDA  → GPIO 2 (I2C SDA)
+    A0   → 5V rail (via voltage divider)
+
+Voltage Divider (5V → 3.3V max):
+    5V ──[2.2kΩ]─┬─[3.3kΩ]── GND
+                 │
+                 └─ A0 (ADC input)
+
+Example Code:
+```python
+import Adafruit_ADS1x15
+
+class PowerManagerWithADC(PowerManager):
+    def __init__(self, pwm_controller, adc_channel=0):
+        super().__init__(pwm_controller, enable_voltage_monitoring=False)
+
+        # Initialize ADS1115
+        self.adc = Adafruit_ADS1x15.ADS1115()
+        self.adc_channel = adc_channel
+        self.voltage_divider_ratio = 5.5 / 3.3  # R1=2.2k, R2=3.3k
+        self.enable_voltage_monitor = True
+
+        # Start monitoring thread
+        self._start_voltage_thread()
+
+    def check_voltage(self) -> float:
+        # Read 16-bit ADC value (0-32767 for 0-4.096V gain setting)
+        adc_value = self.adc.read_adc(self.adc_channel, gain=1)
+
+        # Convert to voltage (gain=1 → ±4.096V range)
+        voltage_divider = (adc_value / 32767.0) * 4.096
+        voltage_5v = voltage_divider * self.voltage_divider_ratio
+
+        self.current_voltage = voltage_5v
+
+        # Check thresholds
+        if voltage_5v < VOLTAGE_CRITICAL_THRESHOLD:
+            self._emergency_shutdown()
+        elif voltage_5v < VOLTAGE_WARNING_THRESHOLD:
+            self._voltage_warning()
+
+        return voltage_5v
+```
+
+## Option 2: MCP3008 (Budget Option)
+- 10-bit resolution, SPI interface
+- Cost: ~$4
+- Library: Adafruit_MCP3008
+- Wiring:
+    VDD   → 3.3V
+    VREF  → 3.3V
+    AGND  → GND
+    DGND  → GND
+    CLK   → GPIO 11 (SPI CLK)
+    DOUT  → GPIO 9 (SPI MISO)
+    DIN   → GPIO 10 (SPI MOSI)
+    CS    → GPIO 8 (SPI CE0)
+    CH0   → 5V rail (via voltage divider)
+
+Example Code:
+```python
+import Adafruit_MCP3008
+
+class PowerManagerWithMCP3008(PowerManager):
+    def __init__(self, pwm_controller, spi_channel=0):
+        super().__init__(pwm_controller, enable_voltage_monitoring=False)
+
+        # Initialize MCP3008 (software SPI)
+        self.adc = Adafruit_MCP3008.MCP3008(clk=11, cs=8, miso=9, mosi=10)
+        self.adc_channel = spi_channel
+        self.voltage_divider_ratio = 5.5 / 3.3
+        self.enable_voltage_monitor = True
+
+        self._start_voltage_thread()
+
+    def check_voltage(self) -> float:
+        # Read 10-bit ADC value (0-1023 for 0-3.3V)
+        adc_value = self.adc.read_adc(self.adc_channel)
+
+        # Convert to voltage
+        voltage_divider = (adc_value / 1023.0) * 3.3
+        voltage_5v = voltage_divider * self.voltage_divider_ratio
+
+        self.current_voltage = voltage_5v
+
+        # Check thresholds
+        if voltage_5v < VOLTAGE_CRITICAL_THRESHOLD:
+            self._emergency_shutdown()
+        elif voltage_5v < VOLTAGE_WARNING_THRESHOLD:
+            self._voltage_warning()
+
+        return voltage_5v
+```
+
+## Testing Your ADC Setup
+```python
+# Test voltage reading
+import time
+
+pm = PowerManagerWithADC(pwm)
+for i in range(10):
+    voltage = pm.check_voltage()
+    print(f"5V Rail: {voltage:.3f}V")
+    time.sleep(0.5)
+
+# Should read ~5.0V when idle
+# Should drop to 4.5-4.8V under heavy servo load
+# Should never read exactly 0V or 5.5V+ (indicates wiring issue)
+```
+
+## Safety Checklist
+☐ Voltage divider properly calculated and tested
+☐ ADC never receives >3.3V input (will damage Pi)
+☐ All grounds connected (Pi GND = ADC GND = Power GND)
+☐ I2C/SPI address conflicts resolved
+☐ Tested under load before deploying
+
+## Why This Matters
+Without proper voltage monitoring:
+- ✅ Robot still works (current limiting prevents UBEC overload)
+- ❌ Cannot detect voltage sag early
+- ❌ Cannot trigger emergency shutdown if UBEC fails
+- ❌ No warning before brownout crashes
+
+The fake GPIO voltage monitoring removed from this code was WORSE than
+no monitoring at all - it gave false confidence while providing no real data.
+
+For questions, see hardware documentation or robot build guide.
+"""

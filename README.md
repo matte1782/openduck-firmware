@@ -1,3 +1,15 @@
+---
+
+⚠️ **SAFETY FIRST** ⚠️
+
+This firmware controls a robot powered by **Li-ion batteries** that can explode and cause death.
+
+**REQUIRED READING:** 📖 [Battery Safety Warnings](docs/SAFETY_WARNINGS.md)
+
+🔴 18+ only | ⚡ Electrical safety training required | 🧯 Class D fire extinguisher required
+
+---
+
 # OpenDuck Mini V3 Firmware
 **Version:** 0.1.0-dev
 **Status:** Week 01 Development - Foundation Phase
