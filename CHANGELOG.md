@@ -544,7 +544,232 @@ Math Layer (Day 3):
 
 **Focus:** Documentation & code cleanup
 
-_[To be filled]_
+### Completed Tasks
+
+#### Email Communication with Eckstein
+- [x] Received response from Zhenrong Yin (Eckstein)
+  - FT01016 (7.4V version) available in stock
+  - 5% discount offered for 25 units (email/PayPal/bank transfer only)
+  - Waiting for manufacturer confirmation on 8.4V max voltage compatibility
+  - Invoice details updated in their system
+
+- [x] Drafted professional response email
+  - File: `docs/eckstein_email_response_16jan.md`
+  - Emphasized critical need for 8.4V voltage confirmation
+  - Requested unit price and total cost for 25 units
+  - Expressed readiness to order immediately upon confirmation
+  - Status: Ready to send
+
+#### Purchase Analysis
+- [x] Analyzed order quantity options (16 vs 20 vs 25 units)
+  - 25 units with 5% discount = best value if unit price ≥ €15-20
+  - Savings of 1.25X on total cost (where X = unit price)
+  - 9 spare servos included vs 0 spare with 16 units
+  - Recommendation: 25 units for cost efficiency + spare inventory
+
+#### Code Changes
+```
+docs/eckstein_email_response_16jan.md - NEW (email draft + analysis)
+```
+
+#### Hardware Status
+- Awaiting 8.4V compatibility confirmation from Eckstein/manufacturer
+- All other components ready for Week 02 testing
+
+#### Issues Encountered
+None - email communication proceeding normally
+
+#### Metrics
+- **Email drafts:** 1 (professional, complete, ready to send)
+- **Purchase analysis:** 3 quantity options compared
+- **Decision support:** Clear recommendation provided
+
+#### Hardware Deliveries Received
+- [x] Massive delivery wave (13-16 January)
+  - Raspberry Pi 4 4GB + case + USB-C PSU (€76.60 + €13.25 + €13.19)
+  - 2x PCA9685 PWM controllers (€10.09)
+  - 5x MG90S servos (€23.98)
+  - 2x UBEC 5V/6V 3A (€6.99 + €8.74)
+  - Servo extension cables 24pcs x2 (€10.98 each)
+  - Dupont cables 120pcs (€8.99)
+  - 3x WS2812B LED rings 16-LED (€7.50 each)
+  - 6x INMP441 I2S microphones (€15.83)
+  - MAX98357A audio amplifier (€10.98)
+  - 5x BMS 2S 20A protection boards (€16.71)
+  - Soldering kit 60W (€19.99)
+  - M2/M3/M4 screws 1080pcs (€10.79)
+  - 3x PLA filament (eSUN, Polymaker, Prusament - €97.57)
+  - TPU filament 0.5kg (€15.99)
+  - PLA Silk tri-color (€18.99)
+  - 5 pairs XT30 connectors (€9.30)
+  - Kapton tape 5-roll set (€7.99)
+  - Isopropanol 99.9% 1L (€10.20)
+  - Solder wire 100g (€7.50)
+  - Total: ~€530 delivered
+
+- [x] Created comprehensive orders tracking document
+  - File: `docs/ORDERS_RECEIVED_UPDATE_16JAN.md`
+  - Status: ~€530 delivered, ~€75 in transit
+  - Critical blockers: Batteries (18650), voltage confirmation
+
+#### Hardware Status Assessment
+- [x] Hardware available for Day 6 testing:
+  - ✅ Raspberry Pi 4 + peripherals (ready)
+  - ✅ PCA9685 x2 (ready for I2C tests)
+  - ✅ MG90S x5 servos (can connect, NO movement without batteries)
+  - ✅ UBEC x2 (power regulation ready)
+  - ✅ WS2812B LED rings (ready for GPIO tests)
+  - ⏳ BNO085 IMU (arriving Monday 20 Jan)
+  - ⏳ microSD 32GB (arriving Monday 20 Jan)
+  - 🔴 Batteries 18650 (critical blocker - not ordered yet)
+
+- [x] Tests possible TODAY (16 Jan):
+  1. PCA9685 I2C connection and detection
+  2. PWM signal generation (no servo movement)
+  3. Hardware validation script (I2C + GPIO + PWM)
+  4. LED ring control tests
+  5. Test coverage and documentation
+
+- [x] Tests deferred (need batteries):
+  - Servo movement validation
+  - Full power system test
+  - Current limiting under load
+  - Emergency stop with servo load
+
+#### Hardware Testing (16:30-17:30)
+- [16:30] Started PCA9685 I2C connection testing
+  - Physical wiring completed: 4 F-F cables (🔴 Red, ⚫ Black, 🟢 Green, 🟠 Orange)
+  - Raspberry Pi powered off during connection
+  - Created comprehensive wiring documentation:
+    - `firmware/docs/WIRING_MAP_PCA9685.md` (official color mapping)
+    - `firmware/docs/YOUR_PCA9685_EXACT_WIRING.md` (user-specific board guide)
+    - `firmware/docs/PCA9685_PIN_IDENTIFICATION.md` (pin identification guide)
+    - `firmware/docs/PCA9685_PHYSICAL_LAYOUT.md` (physical orientation guide)
+    - `firmware/docs/DAY_06_VERIFICATION_COMMANDS.md` (test reference)
+    - `Planning/Week_01/DAY_06_DETAILED_WIRING_GUIDE.md` (step-by-step guide)
+
+- [17:00] I2C System Configuration
+  - Enabled I2C interface on Raspberry Pi (sudo raspi-config)
+  - Installed i2c-tools package
+  - Loaded i2c-dev kernel module
+  - Verified device files created: /dev/i2c-1, /dev/i2c-20, /dev/i2c-21
+  - Installed Python packages:
+    - adafruit-blinka (8.69.0)
+    - adafruit-circuitpython-pca9685 (3.4.20)
+    - RPi.GPIO (0.7.1)
+
+- [17:15] **I2C Detection Test - INITIAL FAILURE ❌**
+  - Command: `sudo i2cdetect -y 1`
+  - Result: **NO DEVICES DETECTED**
+  - Expected: PCA9685 at address 0x40
+  - Actual: All addresses show "--" (no response)
+  - Begin troubleshooting session
+
+- [17:30-18:50] **Extensive Troubleshooting Session**
+  - **Attempt 1:** Tested second PCA9685 board → Same failure (ruled out defective board)
+  - **Attempt 2:** Swapped to different F-F cables → Same failure (ruled out faulty cables)
+  - **Attempt 3:** Scanned all I2C buses (0, 1, 20, 21)
+    - Bus 1: No devices
+    - Buses 20/21: Floating bus pattern (false positives)
+  - **Attempt 4:** Verified GPIO row/column positions
+    - Raspberry Pi side: Confirmed 3 cables LEFT column, 1 cable RIGHT column ✓
+  - **Attempt 5:** Created and ran comprehensive diagnostic script
+    - i2c_tools installed ✓
+    - I2C kernel modules loaded ✓
+    - Device files present ✓
+    - SMBus protocol test (-r flag) → Still no devices
+  - **Attempt 6:** Requested and analyzed photos of physical connections
+    - 4 images provided: Raspberry Pi GPIO and PCA9685 board
+    - Power confirmed working (PCA9685 LED illuminated)
+
+- [19:00] **ROOT CAUSE IDENTIFIED! 🎯**
+  - **Discovery:** SDA and SCL cables were **SWAPPED**!
+  - **Incorrect wiring:**
+    - YELLOW cable: Pi Pin 3 (SDA) → PCA Pin 3 (SCL) ❌
+    - GREEN cable: Pi Pin 5 (SCL) → PCA Pin 4 (SDA) ❌
+  - **Issue:** I2C data (SDA) and clock (SCL) lines were crossed
+  - **Explanation:** Both boards and all cables worked correctly - the pin positions were simply reversed
+
+- [19:01] **FIX APPLIED ✅**
+  - Swapped YELLOW and GREEN cables on Raspberry Pi GPIO:
+    - YELLOW: Moved from Pin 3 → Pin 5 (now connects Pi SCL to PCA SCL) ✓
+    - GREEN: Moved from Pin 5 → Pin 3 (now connects Pi SDA to PCA SDA) ✓
+  - Final wiring:
+    - Pi Pin 1 (3.3V) → RED → PCA VCC ✓
+    - Pi Pin 3 (SDA) → GREEN → PCA SDA ✓
+    - Pi Pin 5 (SCL) → YELLOW → PCA SCL ✓
+    - Pi Pin 6 (GND) → BLACK → PCA GND ✓
+
+- [19:01] **I2C Detection Test - SUCCESS! 🎉**
+  - Command: `sudo i2cdetect -y 1`
+  - Result: **PCA9685 DETECTED AT 0x40!**
+  - Bonus: Also detected TCA9548A I2C Multiplexer at 0x70
+
+- [19:02] **Hardware Validation Script - ALL TESTS PASSED! ✅**
+  - Command: `python3 scripts/hardware_validation.py --i2c`
+  - Test Results:
+    ```
+    [PASS] I2C bus initialized                           (71.0ms)
+    [PASS] I2C scan: found 2 device(s)                   (18.5ms)
+            └── 0x40: PCA9685 PWM Controller
+            └── 0x70: TCA9548A I2C Multiplexer
+    [PASS] PCA9685 MODE1 register readable               (30.9ms)
+    [PASS] PCA9685 frequency set to 50Hz                 (7.1ms)
+    ```
+  - **Tests Passed:** 4/4 (100%) ✅
+
+- [19:04] **PWM Signal Generation Tests - ALL PASSED! ✅**
+  - Command: `python3 scripts/hardware_validation.py --pwm`
+  - Test Results:
+    ```
+    [PASS] I2C bus initialized                           (30.0ms)
+    [PASS] I2C scan: found 1 device(s)                   (18.5ms)
+    [PASS] PCA9685 MODE1 register readable               (13.9ms)
+    [PASS] PCA9685 frequency set to 50Hz                 (7.1ms)
+    [PASS] PWM channel 0 write                           (0.6ms)
+            └── Note: No servo movement (V+ not powered)
+    [PASS] PWM all channels disabled                     (9.7ms)
+    ```
+  - **Tests Passed:** 6/6 (100%) ✅
+  - Note: Servos not connected (no battery power to V+), but PWM communication verified
+
+#### Issues Encountered & Resolution
+
+**RESOLVED: SDA/SCL Cable Swap**
+- **Problem:** PCA9685 not detected despite correct hardware, correct cables, proper I2C configuration
+- **Root Cause:** SDA and SCL data lines were swapped between Raspberry Pi and PCA9685
+- **Impact:** ~90 minutes troubleshooting time, extensive diagnostic process
+- **Resolution:** Swapped YELLOW and GREEN cables on Raspberry Pi GPIO to match correct SDA↔SDA, SCL↔SCL
+- **Lesson Learned:**
+  - Always verify data line mapping, not just pin positions
+  - SDA must connect to SDA, SCL must connect to SCL
+  - Photos of physical connections invaluable for remote debugging
+  - Systematic elimination (different boards, cables, buses) helped isolate the issue
+
+#### Metrics
+- **Documentation created:** 7 comprehensive guides (wiring maps, pin identification, physical layout, diagnostic commands)
+- **I2C system config:** ✅ Complete (i2c-tools, kernel modules, Python packages)
+- **Hardware tests:** ✅ 6/6 passed (100%)
+  - I2C communication: 4/4 passed
+  - PWM signal generation: 2/2 passed
+- **i2cdetect scan:** ✅ 2 devices detected (PCA9685 at 0x40, TCA9548A at 0x70)
+- **Troubleshooting time:** ~90 minutes (17:15-19:05)
+- **Root cause:** SDA/SCL swap (pin mapping issue, not hardware fault)
+- **Status:** ✅ COMPLETE - Hardware validation successful!
+
+#### Tomorrow's Plan (Day 7 - 21 Jan)
+- [09:00] Fix PCA9685 hardware connection (verify wiring, power, pins)
+- [10:00] Re-run I2C detection test (expect 0x40 detection)
+- [11:00] Complete hardware validation script (--i2c flag)
+- [12:00] PWM signal generation tests (--pwm flag)
+- [13:00] BNO085 IMU setup (arrives Monday morning)
+- [14:00] I2C bus test (PCA9685 + BNO085 together)
+- [16:00] Test coverage report (pytest --cov)
+- [17:00] Week 01 completion report
+- [18:00] Week 02 roadmap planning
+- [20:00] Git tag v0.1.0 + final commits
+
+**Day 6 Status:** ✅ COMPLETE (email drafted, deliveries tracked, I2C configured, **PCA9685 hardware validation PASSED - 6/6 tests successful**)
 
 ---
 
@@ -596,6 +821,15 @@ _[To be updated at end of week]_
 3. **Mandatory logging prevents lost work** - CLAUDE.md rule creation was necessary after Day 2 incident
 4. **Software-only days are productive** - 1000+ lines of tested kinematics code without hardware
 5. **Edge case tests matter** - Hostile reviewers found missing tests for extreme values
+
+### Day 6 Lessons:
+1. **I2C signal mapping is critical** - SDA must connect to SDA, SCL must connect to SCL (not just matching pin positions)
+2. **Pin position ≠ Pin function** - Correct physical positions (1,3,5,6) don't guarantee correct signal mapping (VCC, SDA, SCL, GND)
+3. **Systematic elimination works** - Testing multiple boards and cables helped isolate the actual issue (not defective hardware)
+4. **Photos are invaluable for remote debugging** - Visual verification revealed the cable swap that pin descriptions couldn't catch
+5. **Document troubleshooting journeys** - 90-minute troubleshooting session became valuable learning documentation
+6. **Create verification checklists** - Pre-connection checklist would have prevented the SDA/SCL swap (add to future wiring guides)
+7. **Power LED ≠ working I2C** - Board can be powered correctly but still non-functional due to data line issues
 
 ---
 
