@@ -3,6 +3,26 @@
 
 ---
 
+## ⚠️ BEFORE YOU START: Signal Matching is Critical!
+
+```
+═══════════════════════════════════════════════════════════════
+⚠️  Pi GPIO2 (SDA) → MUST CONNECT TO → PCA9685 SDA pin
+⚠️  Pi GPIO3 (SCL) → MUST CONNECT TO → PCA9685 SCL pin
+
+Swapping SDA/SCL is the #1 cause of "device not detected"!
+ALWAYS verify signal names, not just pin positions!
+═══════════════════════════════════════════════════════════════
+```
+
+**Reference Photos (Day 6 Working Configuration):**
+- `hardware_photos/raspberry_pi_gpio.jpeg` - Correct Pi GPIO connections
+- `hardware_photos/pca9685_connections.jpeg` - Correct PCA9685 connections
+
+Compare your setup to these photos BEFORE running tests!
+
+---
+
 ## Quick Reference - Commands to Run
 
 ### Step 1: SSH into Raspberry Pi
@@ -87,21 +107,52 @@ python3 scripts/hardware_validation.py --pwm
 
 ### Issue: "No devices found" in i2cdetect
 
-**Check:**
-1. All 4 cables properly connected:
+⚠️ **MOST COMMON CAUSE: SDA/SCL cables swapped!**
+
+This is the #1 failure mode. Before checking anything else:
+
+**Quick Fix - Try Cable Swap:**
+```bash
+# Power OFF Raspberry Pi
+sudo poweroff
+
+# Swap GREEN and YELLOW/ORANGE cables on EITHER side:
+# Option A: Swap on Pi side (Pin 3 ↔ Pin 5)
+# Option B: Swap on PCA9685 side (SDA pin ↔ SCL pin)
+
+# Verify after swap:
+# - GREEN cable goes to pin labeled "SDA" (NOT "SCL")
+# - YELLOW/ORANGE cable goes to pin labeled "SCL" (NOT "SDA")
+
+# Power ON and test again
+sudo i2cdetect -y 1
+```
+
+**If still not detected, check:**
+
+1. **Signal matching (CRITICAL!):**
+   - ⚠️ Pi SDA (GPIO2, Pin 3) → PCA9685 pin labeled "SDA" or "D"
+   - ⚠️ Pi SCL (GPIO3, Pin 5) → PCA9685 pin labeled "SCL" or "C"
+   - NOT just "Pin 3 to Pin 3" - verify SIGNAL NAMES match!
+
+2. All 4 cables properly connected:
    - 🔴 RED: PCA9685 VCC → Pi Pin 1 (3.3V)
    - ⚫ BLACK: PCA9685 GND → Pi Pin 6 (GND)
-   - 🟢 GREEN: PCA9685 SDA → Pi Pin 3 (GPIO2)
-   - 🟠 ORANGE: PCA9685 SCL → Pi Pin 5 (GPIO3)
+   - 🟢 GREEN: PCA9685 **SDA** → Pi Pin 3 (GPIO2/**SDA**)
+   - 🟡 YELLOW: PCA9685 **SCL** → Pi Pin 5 (GPIO3/**SCL**)
 
-2. I2C enabled:
+3. Compare your setup to reference photos:
+   - `hardware_photos/raspberry_pi_gpio.jpeg`
+   - `hardware_photos/pca9685_connections.jpeg`
+
+4. I2C enabled:
    ```bash
    sudo raspi-config
    # Interface Options → I2C → Yes
    sudo reboot
    ```
 
-3. I2C module loaded:
+5. I2C module loaded:
    ```bash
    lsmod | grep i2c
    # Should show: i2c_dev, i2c_bcm2835

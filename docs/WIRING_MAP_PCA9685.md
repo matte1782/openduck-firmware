@@ -1,192 +1,272 @@
 # PCA9685 Wiring Map - Official Project Standard
-## Data: 16 Gennaio 2026
+## Date: 16 January 2026 | Updated: 20 January 2026
 
-**IMPORTANTE:** Questa è la mappatura UFFICIALE dei colori per tutti i collegamenti PCA9685.
-Usare sempre questi colori per coerenza e debugging facile.
+**IMPORTANT:** This is the OFFICIAL color mapping for all PCA9685 connections.
+Always use these colors for consistency and easy debugging.
 
 ---
 
-## 🎨 MAPPATURA COLORI UFFICIALE
+## ⚠️ CRITICAL: Signal Matching Required!
+
+```
+═══════════════════════════════════════════════════════════════
+Before connecting, verify SIGNAL NAMES match:
+
+Pi GPIO2 (SDA, Pin 3) → PCA9685 pin labeled "SDA" or "D"
+Pi GPIO3 (SCL, Pin 5) → PCA9685 pin labeled "SCL" or "C"
+
+Pin positions don't matter - SIGNAL NAMES must match!
+═══════════════════════════════════════════════════════════════
+```
+
+---
+
+## 🎨 OFFICIAL COLOR MAPPING
 
 ### PCA9685 → Raspberry Pi I2C
 
-| Cavo | Funzione | Da (PCA9685) | A (Raspberry Pi) | Tensione/Segnale |
-|------|----------|--------------|------------------|------------------|
-| 🔴 **ROSSO** | Alimentazione | VCC | Pin 1 (3.3V) | 3.3V Power |
-| ⚫ **NERO** | Ground | GND | Pin 6 (GND) | 0V Ground |
-| 🟢 **VERDE** | I2C Data | SDA | Pin 3 (GPIO2) | I2C SDA |
-| 🟠 **ARANCIONE** | I2C Clock | SCL | Pin 5 (GPIO3) | I2C SCL |
+| Cable | Function | From (PCA9685) | To (Raspberry Pi) | Voltage/Signal |
+|-------|----------|----------------|-------------------|----------------|
+| 🔴 RED      | Power     | VCC (Pin 5) | Pin 1 (3.3V)   | 3.3V Power |
+| ⚫ BLACK    | Ground    | GND (Pin 1) | Pin 6 (GND)    | 0V Ground  |
+| 🟢 GREEN    | I2C Data  | **SDA** (Pin 4) | Pin 3 (GPIO2/**SDA**) | I2C Data |
+| 🟡 YELLOW   | I2C Clock | **SCL** (Pin 3) | Pin 5 (GPIO3/**SCL**) | I2C Clock |
+
+**Note:** Pin numbers refer to the 6-pin I2C header (bottom to top). Pins 2 (OE) and 6 (V+) are left empty.
 
 ---
 
-## 📊 DIAGRAMMA VISIVO CON COLORI ESATTI
+## 📊 VISUAL DIAGRAM WITH SIGNAL EMPHASIS
 
 ```
-    PCA9685 Board                    Raspberry Pi 4
-    ┌─────────────┐                  ┌──────────────┐
-    │             │                  │              │
-    │  VCC ●──────┼────🔴 ROSSO ─────┼──● Pin 1     │ 3.3V
-    │             │                  │              │
-    │  GND ●──────┼────⚫ NERO ───────┼──● Pin 6     │ GND
-    │             │                  │              │
-    │  SDA ●──────┼────🟢 VERDE ─────┼──● Pin 3     │ GPIO2/SDA
-    │             │                  │              │
-    │  SCL ●──────┼────🟠 ARANCIONE ─┼──● Pin 5     │ GPIO3/SCL
-    │             │                  │              │
-    │  V+  ○ VUOTO│                  │              │
-    │  GND ○ VUOTO│                  │ [USB-C]──────┼─── Power
-    └─────────────┘                  └──────────────┘
-```
+    PCA9685 Board                         Raspberry Pi 4
+    (Left I2C pins)                       (GPIO Header)
 
----
+    ┌─────────────┐                       ┌──────────────┐
+    │             │                       │              │
+    │             │   NOT just positions  │              │
+    │             │   ↓                   │              │
+    │ Pin 6 (V+)  ○   Must verify         │              │
+    │             │   SIGNAL NAMES! ─────→│              │
+    │ Pin 5 VCC ●─┼────🔴 RED ────────────┼──● Pin 1     │ 3.3V
+    │             │                       │              │
+    │ Pin 4 SDA ●─┼────🟢 GREEN ──────────┼──● Pin 3     │ GPIO2/SDA
+    │         ↑   │    ↑                  │      ↑       │
+    │       LABEL │  VERIFY!              │    LABEL     │
+    │             │                       │              │
+    │ Pin 3 SCL ●─┼────🟡 YELLOW ─────────┼──● Pin 5     │ GPIO3/SCL
+    │         ↑   │    ↑                  │      ↑       │
+    │       LABEL │  VERIFY!              │    LABEL     │
+    │             │                       │              │
+    │ Pin 2 (OE)  ○   (empty)             │              │
+    │ Pin 1 GND ●─┼────⚫ BLACK ──────────┼──● Pin 6     │ GND
+    │             │                       │              │
+    └─────────────┘                       │ [USB-C]──────┼─── Power
+                                          └──────────────┘
 
-## 🔍 VISTA DETTAGLIATA PER PIN
-
-### Pin PCA9685 (4-pin I2C header):
-```
-┌─────────────────────────────┐
-│  PCA9685 I2C Connection     │
-│                             │
-│  Pin 1: VCC  ●──🔴 ROSSO    │
-│  Pin 2: GND  ●──⚫ NERO     │
-│  Pin 3: SDA  ●──🟢 VERDE    │
-│  Pin 4: SCL  ●──🟠 ARANCIONE│
-│                             │
-└─────────────────────────────┘
-```
-
-### Pin Raspberry Pi GPIO:
-```
-┌─────────────────────────────┐
-│  Raspberry Pi 4 GPIO        │
-│  (Vista dall'alto)          │
-│                             │
-│  Pin 1 (3.3V)   [●]──🔴     │
-│  Pin 2 (5V)     [●]         │
-│  Pin 3 (GPIO2)  [●]──🟢     │
-│  Pin 4 (5V)     [●]         │
-│  Pin 5 (GPIO3)  [●]──🟠     │
-│  Pin 6 (GND)    [●]──⚫     │
-│  Pin 7 (GPIO4)  [●]         │
-│  ...                        │
-└─────────────────────────────┘
+    ⚠️  GREEN connects to "SDA" label (NOT just "Pin 4")!
+    ⚠️  YELLOW connects to "SCL" label (NOT just "Pin 3")!
 ```
 
 ---
 
-## 📋 CHECKLIST VISIVA PER CABLAGGIO
+## 🔍 DETAILED PIN VIEW
 
-### Prima di collegare (Raspberry Pi SPENTO):
-- [ ] Ho i 4 cavi F-F: Rosso, Nero, Verde, Arancione
-- [ ] Raspberry Pi è SPENTO (USB-C scollegato)
-- [ ] Workspace sicuro pronto
+### PCA9685 Pins (6-pin I2C header, BOTTOM to TOP):
 
-### Ordine di collegamento consigliato:
-
-#### STEP 1: Cavo ROSSO 🔴
 ```
-Da: PCA9685 pin "VCC" (primo pin del gruppo I2C)
-A:  Raspberry Pi "Pin 1" (angolo in alto a sinistra, 3.3V)
-[ ] Collegato e inserito completamente
-```
-
-#### STEP 2: Cavo NERO ⚫
-```
-Da: PCA9685 pin "GND" (secondo pin del gruppo I2C)
-A:  Raspberry Pi "Pin 6" (terza fila, lato sinistro, GND)
-[ ] Collegato e inserito completamente
-```
-
-#### STEP 3: Cavo VERDE 🟢
-```
-Da: PCA9685 pin "SDA" (terzo pin del gruppo I2C)
-A:  Raspberry Pi "Pin 3" (seconda fila, lato sinistro, GPIO2)
-[ ] Collegato e inserito completamente
+┌─────────────────────────────────────────┐
+│  PCA9685 I2C Connection (Left Side)     │
+│  Pin numbering: BOTTOM to TOP           │
+│                                         │
+│  Pin 6 (TOP):    V+   ○ (empty)         │
+│  Pin 5:          VCC  ●──🔴 RED         │
+│  Pin 4:          SDA  ●──🟢 GREEN ← DATA SIGNAL   │
+│  Pin 3:          SCL  ●──🟡 YELLOW ← CLOCK SIGNAL │
+│  Pin 2:          OE   ○ (empty)         │
+│  Pin 1 (BOTTOM): GND  ●──⚫ BLACK        │
+│                                         │
+│  ⚠️  Verify PCB labels match cables!    │
+│      GREEN → "SDA" label                │
+│      YELLOW → "SCL" label               │
+└─────────────────────────────────────────┘
 ```
 
-#### STEP 4: Cavo ARANCIONE 🟠
-```
-Da: PCA9685 pin "SCL" (quarto pin del gruppo I2C)
-A:  Raspberry Pi "Pin 5" (terza fila, lato sinistro, GPIO3)
-[ ] Collegato e inserito completamente
-```
+### Raspberry Pi GPIO:
 
----
-
-## ✅ VERIFICA FINALE PRE-ACCENSIONE
-
-### Checklist Colori:
 ```
-PCA9685 Side:
-[ ] VCC → 🔴 ROSSO collegato
-[ ] GND → ⚫ NERO collegato
-[ ] SDA → 🟢 VERDE collegato
-[ ] SCL → 🟠 ARANCIONE collegato
-
-Raspberry Pi Side:
-[ ] Pin 1 (3.3V) → 🔴 ROSSO collegato
-[ ] Pin 6 (GND)  → ⚫ NERO collegato
-[ ] Pin 3 (GPIO2)→ 🟢 VERDE collegato
-[ ] Pin 5 (GPIO3)→ 🟠 ARANCIONE collegato
-```
-
-### Verifica Sicurezza:
-```
-[ ] Tutti i 4 cavi inseriti completamente
-[ ] Nessun filo esposto tocca altri pin
-[ ] V+ e GND (servo power) VUOTI sul PCA9685
-[ ] Raspberry Pi ancora SPENTO
-[ ] Nessun cavo allentato
+┌─────────────────────────────────────────┐
+│  Raspberry Pi 4 GPIO (Top View)         │
+│  Pin 1 is top-left corner               │
+│                                         │
+│  Pin 1 (3.3V)    [●]──🔴 RED            │
+│  Pin 2 (5V)      [●]     (empty)        │
+│  Pin 3 (GPIO2)   [●]──🟢 GREEN ← SDA    │
+│  Pin 4 (5V)      [●]     (empty)        │
+│  Pin 5 (GPIO3)   [●]──🟡 YELLOW ← SCL   │
+│  Pin 6 (GND)     [●]──⚫ BLACK           │
+│  Pin 7 (GPIO4)   [●]     (empty)        │
+│  ...                                    │
+│                                         │
+│  ⚠️  GREEN cable MUST go to Pin 3 (SDA) │
+│  ⚠️  YELLOW cable MUST go to Pin 5 (SCL)│
+└─────────────────────────────────────────┘
 ```
 
 ---
 
-## 🎯 STANDARD PROGETTO
+## 📋 WIRING CHECKLIST WITH SIGNAL VERIFICATION
 
-**Questa mappatura è UFFICIALE per:**
-- ✅ Day 6 testing (oggi)
+### Before Connecting (Raspberry Pi OFF):
+
+```
+[ ] I have 4 F-F cables: Red, Black, Green, Yellow
+[ ] Raspberry Pi is OFF (USB-C disconnected)
+[ ] Safe workspace prepared
+[ ] I read PRE_WIRING_CHECKLIST.md
+[ ] I will take photos BEFORE and AFTER connecting
+```
+
+### Connection Order (ONE cable at a time):
+
+#### STEP 1: BLACK Cable ⚫ (Ground First!)
+```
+From: PCA9685 Pin 1 (BOTTOM) - labeled "GND" or "G"
+To:   Raspberry Pi Pin 6 - labeled "GND"
+[ ] Connected and fully inserted
+[ ] Verified: Firm connection, not loose
+```
+
+#### STEP 2: RED Cable 🔴 (Power Second!)
+```
+From: PCA9685 Pin 5 - labeled "VCC" or "V"
+To:   Raspberry Pi Pin 1 (top-left corner) - labeled "3V3" or "3.3V"
+[ ] Connected and fully inserted
+[ ] Verified: Firm connection, not loose
+```
+
+#### STEP 3: GREEN Cable 🟢 (Data Line - CRITICAL!)
+```
+⚠️  VERIFY SIGNAL NAME BEFORE CONNECTING!
+
+From: PCA9685 Pin 4 - labeled "SDA" or "D" (CHECK LABEL!)
+To:   Raspberry Pi Pin 3 - labeled "GPIO2" or "SDA"
+[ ] Verified: PCA9685 label says "SDA" (NOT "SCL")
+[ ] Connected and fully inserted
+[ ] Double-checked: GREEN goes to "SDA" label
+```
+
+#### STEP 4: YELLOW Cable 🟡 (Clock Line - CRITICAL!)
+```
+⚠️  VERIFY SIGNAL NAME BEFORE CONNECTING!
+
+From: PCA9685 Pin 3 - labeled "SCL" or "C" (CHECK LABEL!)
+To:   Raspberry Pi Pin 5 - labeled "GPIO3" or "SCL"
+[ ] Verified: PCA9685 label says "SCL" (NOT "SDA")
+[ ] Connected and fully inserted
+[ ] Double-checked: YELLOW goes to "SCL" label
+```
+
+---
+
+## ✅ FINAL VERIFICATION (Before Power On!)
+
+### Signal Matching Checklist (CRITICAL):
+
+```
+⚠️  Say this out loud before powering on:
+
+[ ] "GREEN cable connects Pi SDA to PCA9685 SDA label"
+[ ] "YELLOW cable connects Pi SCL to PCA9685 SCL label"
+[ ] "Not just Pin 3 to Pin 3 - I verified SIGNAL NAMES"
+
+Color Checklist:
+[ ] PCA9685 VCC (Pin 5) → 🔴 RED → Pi Pin 1 (3.3V)
+[ ] PCA9685 GND (Pin 1) → ⚫ BLACK → Pi Pin 6 (GND)
+[ ] PCA9685 **SDA label** (Pin 4) → 🟢 GREEN → Pi Pin 3 (GPIO2/SDA)
+[ ] PCA9685 **SCL label** (Pin 3) → 🟡 YELLOW → Pi Pin 5 (GPIO3/SCL)
+
+Safety Checklist:
+[ ] All 4 cables fully inserted
+[ ] No exposed wires touching other pins
+[ ] Pins 2 (OE) and 6 (V+) are EMPTY on PCA9685
+[ ] Raspberry Pi still OFF
+[ ] No loose connections
+```
+
+### Photo Verification:
+
+```
+[ ] Took photos showing PCA9685 pin labels with cables
+[ ] Took photos showing Pi GPIO connections
+[ ] Can verify in photos: GREEN → "SDA", YELLOW → "SCL"
+[ ] Compared my setup to reference photos:
+    - hardware_photos/raspberry_pi_gpio.jpeg
+    - hardware_photos/pca9685_connections.jpeg
+```
+
+---
+
+## 🎯 PROJECT STANDARD
+
+**This mapping is OFFICIAL for:**
+- ✅ Day 6 testing
 - ✅ Week 02 hardware integration
-- ✅ Tutti i futuri setup PCA9685
-- ✅ Documentazione e troubleshooting
+- ✅ All future PCA9685 setups
+- ✅ Documentation and troubleshooting
 
-**Benefici:**
-1. **Coerenza:** Sempre gli stessi colori = meno errori
-2. **Debug rapido:** Se SDA non funziona, cerco il cavo VERDE
-3. **Manutenzione:** Chiunque può seguire lo standard
-4. **Foto documentazione:** Colori riconoscibili
-
----
-
-## 📸 NOTE PER FOTO DOCUMENTAZIONE
-
-Quando scatti foto del setup:
-- Assicurati che i colori dei cavi siano visibili
-- Fai foto da angolazioni multiple (top view, side view)
-- Salva in: `assets/photos/progress/day_06_pca9685_wiring.jpg`
+**Benefits:**
+1. **Consistency:** Same colors = fewer errors
+2. **Quick debugging:** If SDA fails, check GREEN cable
+3. **Maintenance:** Anyone can follow the standard
+4. **Photo documentation:** Colors easily recognizable
 
 ---
 
-## 🔧 TROUBLESHOOTING PER COLORE
+## 🔧 TROUBLESHOOTING BY COLOR
 
-| Problema | Cavo da Controllare | Cosa Verificare |
-|----------|---------------------|-----------------|
-| I2C non rileva 0x40 | 🔴 ROSSO, ⚫ NERO | Alimentazione |
-| I2C error "No such device" | 🟢 VERDE, 🟠 ARANCIONE | Connessioni I2C |
-| Board non si accende | 🔴 ROSSO → Pin 1 corretto? | Verifica 3.3V |
-| Lettura dati instabile | 🟢 VERDE → Pin 3? | Verifica SDA |
-| Clock error | 🟠 ARANCIONE → Pin 5? | Verifica SCL |
+| Problem | Cable to Check | What to Verify |
+|---------|---------------|----------------|
+| I2C doesn't detect 0x40 | 🟢 GREEN, 🟡 YELLOW | **SDA/SCL SWAPPED?** Most common! |
+| Board doesn't power on | 🔴 RED, ⚫ BLACK | Power connections |
+| "No such device" error | 🟢 GREEN | SDA connection |
+| Clock error | 🟡 YELLOW | SCL connection |
+| Unstable data reads | All cables | Loose connections |
+
+### If Device Not Detected:
+
+**Most Common Cause (90%):** SDA/SCL cables swapped!
+
+**Quick Fix:**
+1. Power OFF: `sudo poweroff`
+2. Check photos: Does GREEN go to "SDA" label?
+3. If NO: Swap GREEN and YELLOW cables
+4. Verify: GREEN → "SDA", YELLOW → "SCL"
+5. Power ON and test: `sudo i2cdetect -y 1`
 
 ---
 
-## 📝 STORICO REVISIONI
+## 📸 PHOTO DOCUMENTATION NOTES
 
-| Data | Versione | Modifiche |
-|------|----------|-----------|
-| 16 Gen 2026 | 1.0 | Mappatura iniziale Day 6 |
+When taking photos of your setup:
+- Ensure cable colors are clearly visible
+- Take photos from multiple angles (top view, side view, close-ups)
+- Show PCB labels with connected cables
+- Save in: `firmware/docs/hardware_photos/`
+- Compare to reference photos before powering on
 
 ---
 
-**Documento Creato:** 16 Gennaio 2026
-**Autore:** Matteo Panzeri + Claude AI
+## 📝 REVISION HISTORY
+
+| Date | Version | Changes |
+|------|---------|---------|
+| 16 Jan 2026 | 1.0 | Initial mapping for Day 6 |
+| 20 Jan 2026 | 2.0 | Added SDA/SCL warnings, 6-pin layout, signal emphasis (hostile review fixes) |
+
+---
+
+**Document Created:** 16 January 2026
+**Last Updated:** 20 January 2026
 **Status:** ✅ APPROVED - Official Project Standard
 **File:** `firmware/docs/WIRING_MAP_PCA9685.md`
