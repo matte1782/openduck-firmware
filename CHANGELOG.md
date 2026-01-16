@@ -971,9 +971,116 @@ Pass rate: 98.2%
 
 ## Day 7 - Tuesday, 21 January 2026
 
-**Focus:** Week 01 review & Week 02 planning
+**Focus:** Optional LED ring validation (light day, 60 min max) OR rest day
 
-_[To be filled]_
+#### Day 7 Planning Session (20 Jan, Late Evening)
+
+**User Request:**
+"MAYBE THE LED RINGS JUST AN IDEA ALSO WE GOT THOSE IN ALREADY"
+
+**Planning Process:**
+1. Created initial LED validation plan (2 hours, basic testing)
+2. Ran hostile review with Boston Dynamics standards
+3. Found CRITICAL issues requiring fixes before execution
+
+#### Hostile Review Findings (Agent af3fb93)
+
+**CRITICAL Issues Found:**
+1. **C1: Power Supply Inadequacy** - Original plan used 3.3V; WS2812B requires 5V
+2. **C2: Missing Voltage Level Shifting** - Pi outputs 3.3V logic, LEDs expect 5V
+3. **C3: No Current Measurement** - Risk of brownout → SD card corruption
+4. **H1: GPIO Pin Conflict** - GPIO 10 non-standard; should use GPIO 18 (PWM0)
+
+**Power Budget Analysis:**
+```
+12 LEDs at 50% brightness (128,128,128):
+- Per LED: ~30mA
+- Total: 12 × 30mA = 360mA
+- Pi 5V rail budget: ~1.2A (USB-C supply)
+- Pi base load: 400-600mA
+- Safety margin: 1200 - 600 - 360 = 240mA ✅ ACCEPTABLE
+
+16 LEDs at 50% brightness:
+- Total: 16 × 30mA = 480mA
+- Safety margin: 1200 - 600 - 480 = 120mA ⚠️ MARGINAL
+- Recommendation: Use external 5V supply for 16-LED rings
+```
+
+#### Revised Day 7 Plan (Post-Review)
+
+**Scope: REDUCED from 2 hours to 60 minutes maximum**
+
+**Pre-Flight (10 min):**
+- Verify GPIO 18 available in hardware_config.yaml
+- Check rpi_ws281x library installed
+- Review PRE_WIRING_CHECKLIST.md
+- Prepare multimeter for current measurement
+- Set hard timer for 60 minutes
+
+**Hardware Setup (15 min):**
+- Wire one LED ring only:
+  - Data: GPIO 18 (Physical Pin 12) - standard WS2812B pin
+  - Power: External 5V supply OR Pi 5V rail (after current check)
+  - Ground: Shared between Pi and supply
+- Measure current BEFORE connecting to Pi
+- Take 4 pre-connection photos
+
+**Software Test (20 min):**
+- Install rpi_ws281x library if needed
+- Run minimal test: All LEDs to (128,128,128) - 50% white
+- Success = LEDs light up, no brownout
+- Failure at 30 min = STOP, document issue
+
+**Documentation (15 min):**
+- Update CHANGELOG with results
+- Take photo of lit LEDs
+- Log current draw measurement
+- Note any issues for Week 02
+
+**FORBIDDEN (Deferred to Week 02):**
+- ❌ Multiple color tests
+- ❌ Individual LED addressing
+- ❌ Animation patterns
+- ❌ Second LED ring testing
+- ❌ Integration with robot state
+
+**Hard Stop Conditions:**
+- ⏰ 60-minute timer beeps → STOP IMMEDIATELY
+- 30 min debugging with no light → STOP, document failure
+- Any brownout/reboot → STOP, use external power
+- Scope creep detected ("let me just try...") → STOP
+
+#### Risk Assessment
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| Pi brownout from LED current | HIGH | Measure current first, external supply if >400mA |
+| SD card corruption | HIGH | Current measurement mandatory |
+| Voltage level incompatibility | MEDIUM | Test without shifter, add if needed |
+| Scope creep (60 min → 4 hours) | MEDIUM | Hard timer, explicit forbidden list |
+| GPIO conflict | LOW | GPIO 18 verified available |
+
+#### Alternative Option: Full Rest Day
+
+**Boston Dynamics Recommendation:**
+- Team ahead of schedule (60-65% vs 55-60% target)
+- Week 02 will be intensive (servo integration, assembly)
+- Full rest day prevents burnout before hard push
+- LED test is cosmetic (not critical path)
+
+**Both options valid:**
+- Option A: LED validation (60 min max, follow plan strictly)
+- Option B: Full rest day (professional choice when ahead)
+
+**Status:** ✅ Plan ready for execution (user choice)
+
+**Documentation Created:**
+- `firmware/docs/DAY_07_LED_VALIDATION_PLAN.md` (complete plan with safety checks)
+- Hostile review rating: 7.5/10 (approved with revisions)
+- Value rating: 3/10 (low-value cosmetic feature, but fun morale boost)
+
+**Commits:**
+- _[To be added if Day 7 work executed]_
 
 ---
 
