@@ -1190,6 +1190,137 @@ Pass rate: 98.2%
 
 ---
 
+### Week 02 Testing & Safety Plan Created (17 Jan 2026)
+
+**Planning Session:** Boston Dynamics Senior Systems Engineer Review
+
+**Document Created:**
+- `Planning/Week_02/WEEK_02_TESTING_SAFETY_PLAN.md` (1,200+ lines)
+
+**Plan Contents:**
+1. **Test Coverage Expansion Strategy**
+   - Current: 452 tests, 98.2% pass rate
+   - Target: 697 tests by end of Week 02
+   - Day-by-day test quotas defined
+
+2. **Hardware Safety Validation Procedures**
+   - Pre-power verification checklist (4 sections, 20+ items)
+   - Servo power-on sequence (7 steps with verification)
+   - Multi-servo activation protocol
+   - Battery integration safety protocol (4 sections)
+
+3. **Hostile Review Schedule**
+   - Mandatory triggers defined
+   - Day-by-day review schedule
+   - Safety-critical review prompts
+
+4. **Integration Test Design**
+   - Safety system integration tests
+   - Control loop integration tests
+   - Animation system integration tests
+   - Hardware integration tests
+
+5. **Failure Mode Analysis (FMEA)**
+   - Servo failure modes (5 identified)
+   - Power system failure modes (5 identified)
+   - Software failure modes (5 identified)
+   - Mitigation priority matrix
+
+6. **Safety Interlocks for Servo Power**
+   - 5 software interlocks defined
+   - 4 hardware interlock requirements
+   - Interlock test verification code
+
+7. **Day-by-Day Work Breakdown**
+   - Days 8-14 detailed task lists
+   - Hardware arrival integration points
+   - Test count targets per day
+
+8. **Coverage Targets by Module**
+   - 12 modules with specific targets
+   - Critical path modules: 95%+ required
+   - Rationale documented
+
+**Key Safety Decisions:**
+- E-stop latency target: <5ms
+- Watchdog response: <100ms
+- Stall detection: <300ms
+- Total current budget: 2.5A max
+- Thermal duty cycle limit: 70%
+
+**Status:** Document ready for Week 02 execution
+
+---
+
+### Controls Systems Engineering Plan (17 Jan 2026)
+
+**Context:** Senior Controls Systems Engineer analysis for Week 02 animation/servo coordination.
+
+**Document Created:**
+- `firmware/docs/ANIMATION_CONTROLS_SYSTEM_PLAN.md` (comprehensive technical plan)
+
+**Plan Contents:**
+
+1. **System Architecture**
+   - 5-layer stack: Physical -> HAL -> Animation Engine -> Coordination -> Behaviors
+   - Full dependency injection for mock-testable design
+   - Thread safety model documented
+
+2. **Keyframe Interpolation System**
+   - `Keyframe` (frozen dataclass, validated)
+   - `AnimationSequence` (lazy-sorted keyframe container)
+   - `KeyframeInterpolator` (O(log n) lookup, O(1) easing via LUT)
+   - Sub-millisecond timing accuracy target
+
+3. **Easing Functions Library**
+   - 20+ Disney-compliant easing functions
+   - Pre-computed lookup tables (101 entries per function)
+   - `linear`, `ease_in/out/in_out_*` (quad, cubic, sine, expo)
+   - `bounce_in/out`, `elastic_in/out`, `ease_*_back` (overshoot)
+
+4. **Multi-Servo Synchronization**
+   - `AnimationPlayer` with priority-based layering
+   - `AnimationPriority` enum (IDLE < EMOTION < REACTION < COMMAND < SAFETY)
+   - Smooth blending between animations
+   - <0.5ms inter-servo skew target
+
+5. **50Hz Control Loop**
+   - `ControlLoop` class with deterministic timing
+   - Jitter monitoring and statistics
+   - Safety callback integration
+   - Overrun detection and recovery
+
+6. **Performance Budgets**
+   - 20ms cycle with 6.7ms used, 13.3ms headroom
+   - Memory: 8.1KB easing LUTs, 1KB animation buffer
+   - Zero allocations in hot path (pre-allocated buffers)
+
+7. **Day-by-Day Implementation Schedule**
+   - Day 8: Keyframe + BNO085 (40 tests)
+   - Day 9: Easing + LED Patterns (30 tests)
+   - Day 10: AnimationPlayer + Sync (35 tests)
+   - Day 11: ControlLoop (25 tests)
+   - Day 12: Integration (30 tests)
+   - Day 13: Hostile Review (15 tests)
+   - Day 14: Closure (5 tests)
+   - **Total: 180 new tests planned**
+
+8. **Mock-Testable Architecture**
+   - `AnimationSystemFactory` for dependency injection
+   - `create_for_testing()` with mock time/servo
+   - `create_for_production()` for hardware
+
+**Test Cases Specified:**
+- `TestKeyframe`: creation, validation, immutability
+- `TestAnimationSequence`: empty, add, sorting, channels
+- `TestKeyframeInterpolator`: linear, ease_in, ease_out, multi-channel, looping, pause/resume
+- `TestEasingFunctions`: range validation, symmetry, overshoot
+- `TestTimingAccuracy`: sub-millisecond precision
+
+**Status:** READY FOR IMPLEMENTATION - All classes designed, tests specified, budgets allocated.
+
+---
+
 ### Week 01 Closure Session (21 Jan 2026, Evening)
 
 **Planning Documents Created:**
@@ -1215,6 +1346,413 @@ Pass rate: 98.2%
 - BNO085 IMU integration
 - Battery + servo movement
 - Animation system development
+
+---
+
+### Week 02 Master Schedule Created (17 Jan 2026, Planning Session)
+
+**Context:** Technical Program Manager planning session for optimized Week 02 schedule.
+
+**Documents Created:**
+1. `Planning/Week_02/WEEK_02_MASTER_SCHEDULE.md` - Master schedule with:
+   - Gantt-style task breakdown (visual timeline)
+   - Dependency mapping (what blocks what)
+   - Critical path identification
+   - Buffer time allocation (~11 hours / 17% of week)
+   - Hardware arrival contingencies (4 scenarios)
+   - Go/No-Go decision points (Day 8, 10, 12, 14)
+   - Success metrics per day
+
+2. `Planning/Week_02/DAY_08.md` - BNO085 IMU Integration + Animation Timing
+   - Morning: BNO085 wiring, I2C validation, driver TDD
+   - Afternoon: Animation timing system
+   - Target: 502+ tests, IMU validated
+
+3. `Planning/Week_02/DAY_09.md` - Easing Functions + LED Patterns
+   - Morning: 8 easing functions (Disney principles)
+   - Afternoon: 5 LED patterns (breathing, pulse, spin, sparkle, rainbow)
+   - Target: 550+ tests, patterns on hardware
+
+4. `Planning/Week_02/DAY_10.md` - Emotion State Machine + Servo Contingency
+   - 8-state emotion machine with transitions
+   - SERVO ARRIVAL CONTINGENCY (insert 2h if received)
+   - Target: 590+ tests
+
+5. `Planning/Week_02/DAY_11.md` - Head Controller + Color Transitions
+   - Pan/tilt control with gestures (nod, shake, glance)
+   - HSV color transitions with arc interpolation
+   - Target: 625+ tests
+
+6. `Planning/Week_02/DAY_12.md` - Idle Behaviors + BATTERY CONTINGENCY
+   - Idle behavior system (blink, glance loops)
+   - BATTERY ARRIVAL: Full hardware integration path
+   - Target: 660+ tests, possible first servo movement
+
+7. `Planning/Week_02/DAY_13.md` - Polish + Hostile Reviews
+   - Comprehensive hostile review (all Week 02 code)
+   - Performance profiling
+   - Hardware validation (if batteries arrived)
+   - Target: 680+ tests
+
+8. `Planning/Week_02/DAY_14.md` - Week 02 Closure + v0.2.0
+   - Final test run
+   - Week 02 completion report
+   - Git tag v0.2.0
+   - Week 03 planning kickoff
+   - Target: 700+ tests, v0.2.0 released
+
+**Hardware Timeline:**
+- BNO085 IMU: Monday (Day 8) - CONFIRMED IN HAND
+- Servos: Mid-Week 2 (~Day 10-11) - MEDIUM confidence
+- Batteries: End of Week 2 - LOW confidence
+- AI Camera: Week 3 - HIGH confidence
+
+**Contingency Scenarios:**
+- Scenario A: Servos arrive Day 10-11 (insert 2h calibration)
+- Scenario B: Batteries arrive Day 12-13 (MAJOR milestone - first movement)
+- Scenario C: Batteries NOT arrived by Day 14 (software-only week, v0.2.0-software)
+- Scenario D: Both arrive early (full hardware week - stretch goal)
+
+**Critical Path:**
+```
+Day 8: BNO085 + Timing -> Day 9: Easing + Patterns -> Day 10: Emotions
+                                                            |
+                          Day 11: Head Controller <---------+
+                                   |
+                          Day 12: Integration Tests
+                                   |
+                          Day 13: Polish + Reviews
+                                   |
+                          Day 14: v0.2.0 Release
+```
+
+**Success Metrics (Week 02):**
+| Metric | Target | Stretch Goal |
+|--------|--------|--------------|
+| Test Count | 600+ | 700+ |
+| Test Pass Rate | 95%+ | 98%+ |
+| Lines of Code | 8,500+ | 10,000+ |
+| Hardware Validations | 2+ | 4+ |
+| Hostile Reviews | 5+ | 7+ |
+
+**Buffer Allocation:**
+- Day 8: 1h (BNO085 troubleshooting)
+- Day 10: 1h (Servo arrival processing)
+- Day 12: 2h (Battery arrival processing)
+- Day 13: 4h (Catch-up / hardware focus)
+- Day 14: 2h (Final polish)
+- **Total: ~11 hours (17% of 64-hour week)**
+
+**Status:** ✅ PLANNING COMPLETE - Week 02 ready for execution
+
+---
+
+### Perception System Technical Plan (17 Jan 2026)
+
+**Author:** Machine Learning Research Scientist - Perception (Google DeepMind Robotics)
+**Document:** `firmware/docs/PERCEPTION_SYSTEM_TECHNICAL_PLAN.md`
+
+**Scope:** Comprehensive architecture for BNO085 IMU optimization and AI camera preparation.
+
+**Key Components Designed:**
+
+1. **Modular Perception Stack**
+   - Abstract sensor interfaces (SensorInterface, IMUInterface, CameraInterface)
+   - Plugin architecture for future sensors
+   - Thread-safe I2CBusManager integration
+
+2. **Enhanced Data Structures**
+   - Immutable Quaternion class with SLERP interpolation
+   - OrientationState with uncertainty estimation
+   - RingBuffer for sensor history (thread-safe)
+
+3. **Sensor Fusion Algorithms**
+   - ComplementaryFilter (immediate implementation)
+   - ExtendedKalmanFilter (Week 3 preparation)
+   - VisualInertialFusion interface (Week 3 camera integration)
+
+4. **Calibration System**
+   - Gyroscope zero-rate offset calibration
+   - Six-position accelerometer calibration
+   - Figure-8 magnetometer calibration
+   - Mounting orientation compensation
+   - YAML persistence for calibration data
+
+5. **Noise Filtering**
+   - LowPassFilter (1st order IIR, configurable cutoff)
+   - MovingAverageFilter (O(1) computation)
+   - ZScoreOutlierFilter (statistical outlier rejection)
+   - MedianFilter (impulse noise rejection)
+
+6. **Data Pipeline**
+   - PerceptionPipeline orchestrator
+   - Dedicated reader thread (100Hz sampling)
+   - Publisher thread with subscriber pattern
+   - Rate controller for output synchronization
+
+7. **AI Camera Preparation (Week 3)**
+   - CameraInterface abstract class
+   - AIInferenceResult data structures
+   - ObjectDetection with 3D pose estimation
+   - VisualInertialFusion placeholder
+
+**TDD Test Cases Specified:** 100+ tests across all components
+- Quaternion tests (15 cases)
+- ComplementaryFilter tests (20 cases)
+- LowPassFilter tests (15 cases)
+- MovingAverageFilter tests (10 cases)
+- RingBuffer tests (10 cases)
+- IMUCalibration tests (15 cases)
+- PerceptionPipeline tests (15 cases)
+
+**Day-by-Day Work Breakdown:**
+- Day 8: BNO085 hardware validation + enhanced driver
+- Day 9: Complementary filter + noise filtering
+- Day 10: Calibration system + perception pipeline
+- Day 11: EKF preparation + camera interfaces
+- Day 12: Full integration + polish
+
+**Status:** APPROVED FOR IMPLEMENTATION
+
+---
+
+### Week 02 Hardware Integration Planning (21 Jan 2026, Late Session)
+
+**Context:** Senior Robotics Systems Engineer planning session for Week 02 hardware integration.
+
+**Hardware Timeline Analysis:**
+- BNO085 IMU: Expected Day 8 (Monday)
+- MG90S Servos (5x): Expected Day 10-11 (Mid-week)
+- 18650 Batteries: Expected Day 14+ (End of week at best)
+- Already Validated: PCA9685, LED ring, UBEC ready
+
+**Document Created:**
+- `firmware/docs/WEEK_02_HARDWARE_INTEGRATION_PLAN.md` (~750 lines)
+
+**Plan Contents:**
+1. **Phase 1: BNO085 IMU Integration (Day 8)**
+   - Pre-arrival software preparation (driver template)
+   - Physical wiring procedure with signal verification
+   - Validation commands and Python test script
+   - Multi-device I2C bus verification (PCA9685 + BNO085 concurrent)
+
+2. **Phase 2: Servo Integration (Day 10-11)**
+   - Servo wiring without batteries (PWM-only testing)
+   - Channel assignment (Head pan/tilt, arms, tail)
+   - PWM validation script (no motor movement)
+   - Servo calibration procedure (for when batteries arrive)
+
+3. **Phase 3: Battery Integration (Day 14+)**
+   - Pre-battery safety checklist (hardware + software)
+   - Power budget analysis (UBEC 3A allocation)
+   - Step-by-step first power-on procedure
+   - Current scenarios: Idle (248mA) to 3-servo (1118mA)
+
+4. **Phase 4: Integration Test Sequences**
+   - Validation matrix (with/without battery tests)
+   - Complete integration test script
+   - Risk levels documented per test
+
+5. **Risk Mitigation Strategies**
+   - Hardware delay contingencies (3 scenarios)
+   - Hardware failure recovery procedures
+   - Fallback plans for each component
+
+6. **Daily Execution Checklists**
+   - Day 8: BNO085 checklist (10 items)
+   - Day 10-11: Servo wiring checklist (9 items)
+   - Day 14: Battery integration checklist (12 items)
+
+**Power Budget Summary:**
+```
+UBEC 3A Rating → 2400mA usable (20% safety margin)
+Scenario Analysis:
+- Idle: 248mA ✅
+- Single servo: 538mA ✅
+- 3 concurrent servos: 1118mA ✅
+- 5 concurrent servos: 1698mA ⚠️ (software-limited to 3)
+```
+
+**Key Safety Decisions:**
+- max_servos_concurrent: 3 (hard limit in software)
+- Servo stall detection: 300ms timeout, 500mA limit
+- Battery integration LAST after all I2C/PWM validation
+- Emergency stop accessible during all powered tests
+
+**Flexibility Features:**
+- Plan adapts to whenever hardware actually arrives
+- Each phase independent (can skip/reorder based on delivery)
+- Fallback procedures for every delay scenario
+- Tests marked as "requires battery" vs "no battery needed"
+
+**Status:** ✅ APPROVED - Ready for Week 02 Execution
+
+---
+
+### Week 02 LED Pattern Library Planning (17 Jan 2026)
+
+**Context:** Full Stack Software Engineer (Robot Fleet Management) planning session for LED pattern library and visualization tools.
+
+**Hardware Status:**
+- LED ring (16-pixel WS2812B on GPIO18): WORKING (validated Day 7)
+- Ready for immediate development and testing on real hardware
+
+**Document Created:**
+- `Planning/Week_02/LED_PATTERN_LIBRARY_PLAN.md` (~900 lines)
+- Status: READY FOR IMPLEMENTATION
+
+**Plan Contents:**
+
+1. **Pattern Class Hierarchy**
+   - PatternBase ABC with performance metrics and pre-allocated pixel buffers
+   - BreathingPattern: Slow sine wave (4s cycle), MIN_INTENSITY 0.3
+   - PulsePattern: Heartbeat double-pulse (100ms+100ms, 700ms rest)
+   - SpinPattern: Rotating comet with 4-pixel tail
+   - SparklePattern: Seeded RNG (deterministic for testing)
+   - FadePattern: Eased transitions (3s fade, 2s hold, 3s rise)
+
+2. **CLI Tool Design (`led_pattern_cli.py`)**
+   - `--pattern`: breathing, pulse, spin, sparkle, fade
+   - `--color`: RGB string "R,G,B" or `--hex` or `--emotion` presets
+   - `--speed`: Animation multiplier (0.1-5.0)
+   - `--brightness`: 0.0-1.0 (default 0.5 for Pi safety)
+   - `--duration`: Seconds (0=infinite)
+   - `--preview`: ASCII terminal visualization
+   - `--no-hardware`: Desktop development mode
+   - `--timing`: Frame timing statistics
+   - `--demo`: Run all patterns sequence
+
+3. **Color Math Utilities**
+   - `rgb_to_hsv()` / `hsv_to_rgb()`: Standard conversion
+   - `color_arc_interpolate()`: HSV path (red→green via yellow, not brown)
+   - `adjust_color_temperature()`: Warm/cool shift (-1 to +1)
+   - `gamma_correct()`: Perceptual brightness correction
+
+4. **Performance Optimization (Lookup Tables)**
+   - SINE_LUT: 256 floats for O(1) breathing animation
+   - EASE_*_LUT: 4 tables × 101 entries for easing functions
+   - GAMMA_LUT: 256 ints for perceptual correction
+   - BRIGHTNESS_LUT: 101×256 ints for fast scaling
+   - Total memory: ~110KB (acceptable for Pi 4 with 4GB RAM)
+
+5. **Debug Tools**
+   - TerminalPreview: ASCII ring with ANSI colors (no hardware needed)
+   - TimingAnalyzer: Mean/std/p95/p99 frame times, histogram
+   - Pattern validator: Brightness range, smoothness checks
+
+6. **Day-by-Day Schedule (Days 8-11)**
+   - Day 8: Color utilities + PatternBase + Breathing + Pulse
+   - Day 9: Spin + Sparkle + Fade + CLI tool
+   - Day 10: Debug tools + Performance optimization + Benchmarking
+   - Day 11: Demo script + Polish + Hostile review
+
+**Key Design Decisions:**
+- Pre-computed lookup tables for guaranteed 50Hz performance
+- Seeded RNG in SparklePattern for reproducible test animations
+- Disney 12 principles applied (timing, easing, follow-through, secondary action)
+- GPIO18 conflict with I2S documented - ready to move to GPIO12 when audio enabled
+- Default brightness 50% prevents Pi 5V rail brownout
+
+**Test Targets:**
+- 120+ unit tests for LED system
+- >90% code coverage
+- <10ms render time per frame (budget: 20ms at 50Hz)
+- Stable 50Hz for 60+ seconds continuous operation
+
+**Emotion Color Presets:**
+```
+idle:     (100, 150, 255)  # Soft blue
+happy:    (255, 220, 50)   # Warm yellow
+curious:  (150, 255, 150)  # Soft green
+alert:    (255, 100, 100)  # Warm red
+sad:      (100, 100, 200)  # Muted blue
+sleepy:   (150, 130, 200)  # Lavender
+excited:  (255, 150, 50)   # Orange
+thinking: (200, 200, 255)  # White-blue
+```
+
+**Status:** ✅ APPROVED - Ready for Week 02 Implementation
+
+---
+
+### Week 02 Behavior System Technical Plan (22 Jan 2026)
+
+**Context:** Research Engineer - Applied Robotics (Google DeepMind) planning session for emotion and personality behavior implementation.
+
+**Document Created:**
+- `firmware/docs/BEHAVIOR_SYSTEM_TECHNICAL_PLAN.md` (~2,500 lines)
+
+**Plan Contents:**
+
+1. **Architecture Overview**
+   - Three-layer architecture: Application → Animation → Hardware Abstraction
+   - Thread model: Main thread + Animation thread (50Hz) + Sensor thread
+   - Thread-safe event queue for emotion change requests
+
+2. **EmotionManager Class Design (~600 lines)**
+   - 8 emotion states: IDLE, HAPPY, CURIOUS, ALERT, SAD, SLEEPY, EXCITED, THINKING
+   - EmotionConfig dataclass with Disney-quality parameters (color, timing, pattern, head pose)
+   - HSV color blending for smooth arc transitions (Disney principle #7)
+   - 50Hz animation loop with pattern calculations
+   - State machine with valid transition enforcement (VALID_TRANSITIONS dict)
+
+3. **IdleBehavior Async Implementation (~300 lines)**
+   - 5 concurrent asyncio behavior loops:
+     - Breathing (continuous 4-second cycle)
+     - Glancing (random head turns, 3-8s interval)
+     - Blinking (LED dim, 2-6s interval with 20% double-blink chance)
+     - Settling (weight shifts, 10-20s interval)
+     - Attention (look around, 15-45s interval)
+   - Suppression mechanism for explicit actions
+   - Disney-style easing on all movements
+
+4. **Behavior Tree Architecture (~200 lines)**
+   - Base classes: BehaviorNode, Selector, Sequence, Condition, Action
+   - Priority-based emotion trigger evaluation
+
+5. **Emotion Triggers from Sensor Input**
+   - 10 standard triggers with priority and cooldown:
+     - obstacle_close → ALERT (P1), collision → ALERT (P1)
+     - wake_word → HAPPY (P2), voice_command → CURIOUS (P3)
+     - task_complete → HAPPY (P3), movement_detected → CURIOUS (P4)
+     - processing → THINKING (P5), error_state → SAD (P5)
+     - battery_low → SLEEPY (P6), idle_timeout → SLEEPY (P8)
+
+6. **Mock Head Controller (~150 lines)**
+   - MockHeadController for testing without servos (logs movements, tracks virtual position)
+   - RealHeadController ready for hardware integration (pan=ch12, tilt=ch13)
+
+7. **Day-by-Day Work Breakdown (Days 8-14)**
+   | Day | Focus | Tests |
+   |-----|-------|-------|
+   | 8 | EmotionManager, EmotionConfig | +50 |
+   | 9 | ColorManager, PatternLibrary | +35 |
+   | 10 | IdleBehavior async loops | +30 |
+   | 11 | BehaviorTree, Triggers | +25 |
+   | 12 | BehaviorCoordinator, HeadController | +20 |
+   | 13 | Servo integration (if arrived) | +10 |
+   | 14 | Polish, documentation | +10 |
+
+**Disney 12 Principles Applied:**
+- Anticipation: Brief dim before emotion change
+- Slow In/Slow Out: Easing on all transitions
+- Arc: HSV color interpolation (not linear RGB)
+- Secondary Action: Subtle patterns under primary
+- Appeal: Warm, desaturated, friendly colors
+
+**Color Psychology Mapping:**
+- Idle: (100,150,255) soft blue - calm
+- Happy: (255,220,50) warm yellow - joy
+- Alert: (255,100,100) warm red - attention
+- Thinking: (200,200,255) white-blue - processing
+
+**Success Metrics:**
+- Test count: 180+ for behavior system
+- Animation frame rate: 50Hz ±5%
+- Emotion transition latency: <100ms
+- Idle behavior variety: 5+ distinct behaviors
+
+**Status:** ✅ READY FOR IMPLEMENTATION - Day 8 (Monday)
 
 ---
 
