@@ -71,7 +71,8 @@ thermal:
 
 emergency_stop:
   # Emergency stop behavior
-  gpio_pin: 17                  # GPIO pin for emergency stop button (BCM numbering)
+  # NOTE: Must match hardware_config.yaml - GPIO 26 was chosen to avoid I2S audio conflict (GPIO 21)
+  gpio_pin: 26                  # GPIO pin for emergency stop button (BCM numbering)
   trigger_active_low: true      # Button press pulls pin to ground
   debounce_ms: 50               # Debounce time to prevent false triggers
 
