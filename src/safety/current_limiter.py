@@ -96,6 +96,14 @@ class ServoCurrentProfile:
     stall_ma: float = 900.0
     thermal_time_constant_s: float = 30.0
 
+    def __post_init__(self):
+        if self.idle_ma < 0 or self.no_load_ma < 0 or self.stall_ma < 0:
+            raise ValueError("Current values must be non-negative")
+        if self.idle_ma >= self.stall_ma:
+            raise ValueError(f"idle_ma ({self.idle_ma}) must be less than stall_ma ({self.stall_ma})")
+        if self.thermal_time_constant_s <= 0:
+            raise ValueError(f"thermal_time_constant_s must be positive, got {self.thermal_time_constant_s}")
+
 
 @dataclass
 class _ChannelState:
@@ -190,6 +198,11 @@ class CurrentLimiter:
     # Thermal decay time constant (seconds)
     THERMAL_DECAY_TIME_S: float = 5.0
 
+    # Load factors for current estimation model
+    LOAD_FACTOR_NORMAL: float = 0.25  # Typical no-load movement
+    LOAD_FACTOR_SUSPECTED: float = 0.60  # Increased resistance detected
+    LOAD_FACTOR_STALL: float = 1.0  # Full stall current
+
     def __init__(
         self,
         profile: Optional[ServoCurrentProfile] = None,
@@ -228,6 +241,10 @@ class CurrentLimiter:
             raise ValueError(
                 f"soft_limit_factor must be in [0.0, 1.0], got {soft_limit_factor}"
             )
+        if stall_timeout_s <= 0:
+            raise ValueError(f"stall_timeout_s must be positive, got {stall_timeout_s}")
+        if num_channels > 256:
+            raise ValueError(f"num_channels must be <= 256, got {num_channels}")
 
         # Store configuration
         self.profile = profile if profile is not None else ServoCurrentProfile()
@@ -290,13 +307,13 @@ class CurrentLimiter:
             load_factor: float
             if state.stall_condition == StallCondition.NORMAL:
                 # Normal movement: assume 25% of max load (typical no-load)
-                load_factor = 0.25
+                load_factor = self.LOAD_FACTOR_NORMAL
             elif state.stall_condition == StallCondition.SUSPECTED:
                 # Suspected stall: assume 60% load (increased resistance)
-                load_factor = 0.60
+                load_factor = self.LOAD_FACTOR_SUSPECTED
             else:  # CONFIRMED
                 # Confirmed stall: full stall current
-                load_factor = 1.0
+                load_factor = self.LOAD_FACTOR_STALL
 
             # Movement factor is 1.0 since we know servo is moving
             movement_factor = 1.0
@@ -425,12 +442,14 @@ class CurrentLimiter:
                 return StallCondition.NORMAL
 
             # Check if position has changed since last check
-            # Note: If last_position is None, this is the first check - don't count as change
             if state.last_position is not None:
                 position_changed = abs(position - state.last_position) >= self.POSITION_TOLERANCE_DEG
             else:
-                # First position reading - start tracking from here
-                position_changed = False  # Not a change, just initialization
+                # First position reading - don't start stall timer yet
+                # Just record position and wait for next reading
+                state.last_position = position
+                state.last_position_time = now
+                return StallCondition.NORMAL
 
             if position_changed:
                 # Position is changing, reset stall detection
@@ -825,3 +844,10 @@ class CurrentLimiter:
             raise ValueError(
                 f"Channel must be 0-{self.num_channels - 1}, got {channel}"
             )
+
+    def __repr__(self) -> str:
+        return (
+            f"CurrentLimiter(num_channels={self.num_channels}, "
+            f"stall_timeout_s={self.stall_timeout_s}, "
+            f"max_duty_cycle={self.max_duty_cycle})"
+        )

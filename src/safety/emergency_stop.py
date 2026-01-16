@@ -46,6 +46,7 @@ Example Usage:
 import time
 import logging
 import threading
+from collections import deque
 from enum import Enum, auto
 from typing import Optional, Callable, List, Any, Protocol
 from dataclasses import dataclass
@@ -130,12 +131,14 @@ class EmergencyStopEvent:
     """Event data for emergency stop triggers.
 
     Attributes:
-        timestamp: Unix timestamp when event occurred
+        timestamp: Unix timestamp when event occurred (time.time() for human-readable)
+        monotonic_timestamp: Monotonic timestamp (time.monotonic() for duration calculations)
         source: Source of the trigger (e.g., "gpio", "manual", "software")
         latency_ms: Time from trigger to servo disable completion
         previous_state: State before the trigger
     """
-    timestamp: float
+    timestamp: float  # time.time() for human-readable
+    monotonic_timestamp: float  # time.monotonic() for duration calculations
     source: str
     latency_ms: float
     previous_state: SafetyState
@@ -243,12 +246,12 @@ class EmergencyStop:
         # State management
         self._state = SafetyState.INIT
         self._callbacks: List[StateChangeCallback] = []
-        self._event_history: List[EmergencyStopEvent] = []
+        self._event_history: deque[EmergencyStopEvent] = deque(maxlen=self.MAX_EVENT_HISTORY)
         self._gpio_monitoring_active = False
         self._disable_succeeded: bool = True  # Issue #1: Track if disable_all() succeeded
 
         # GPIO provider (dependency injection for testing)
-        self._gpio: Optional[Any] = None
+        self._gpio: Optional[GPIOProvider] = None
         self._gpio_available = False
 
         if gpio_provider is not None:
@@ -303,7 +306,7 @@ class EmergencyStop:
             List of EmergencyStopEvent objects, oldest first.
         """
         with self._lock:
-            return self._event_history.copy()
+            return list(self._event_history)
 
     @property
     def disable_succeeded(self) -> bool:
@@ -359,9 +362,9 @@ class EmergencyStop:
         for callback in self._callbacks:
             try:
                 callback(old_state, new_state, source)
-            except Exception:
+            except Exception as e:
                 # Don't let callback errors affect safety system
-                pass
+                _logger.warning("Exception during callback execution (ignored for safety): %s", e)
 
         return True
 
@@ -393,13 +396,12 @@ class EmergencyStop:
             if self._gpio_available and self._gpio is not None:
                 try:
                     self._setup_gpio()
-                except Exception:
+                except Exception as e:
                     # GPIO setup failed - mark as unavailable
                     # Software triggers still work, but no hardware E-STOP
                     self._gpio_monitoring_active = False
                     self._gpio_available = False
-                    # In production, this should go to a proper logger
-                    pass
+                    _logger.warning("Exception during GPIO setup (ignored for safety): %s", e)
 
             # Transition to RUNNING
             return self._set_state(SafetyState.RUNNING, source="start")
@@ -457,6 +459,9 @@ class EmergencyStop:
             Verifies pin is actually LOW to filter spurious edge detections
             that may occur despite hardware debounce.
         """
+        gpio_interrupt_time = time.monotonic()
+        _logger.debug("GPIO interrupt on pin %d at monotonic time %.6f", channel, gpio_interrupt_time)
+
         # Verify pin is actually LOW (debounce verification)
         # This guards against spurious edge detections from noise
         if self._gpio is not None and self._gpio.input(self._gpio_pin) != 0:
@@ -503,21 +508,24 @@ class EmergencyStop:
             previous_state = self._state
 
             # CRITICAL: Disable servos FIRST for minimum latency
-            # This is the safety-critical operation
-            try:
-                self._servo_driver.disable_all()
-                self._disable_succeeded = True  # Issue #1: Track success
-            except Exception as e:
-                # Issue #1: Track failure and log the exception
-                self._disable_succeeded = False
-                _logger.critical(
-                    "SAFETY CRITICAL: disable_all() failed during E-STOP! "
-                    "Servos may still be running. Exception: %s",
-                    e,
-                    exc_info=True
-                )
-                # Continue with state transition - state should reflect E_STOP
-                # even though physical stop may have failed
+            # This is the safety-critical operation with retry logic
+            MAX_DISABLE_RETRIES = 3
+            RETRY_DELAY_MS = 1  # 1ms between retries
+
+            for attempt in range(MAX_DISABLE_RETRIES):
+                try:
+                    self._servo_driver.disable_all()
+                    self._disable_succeeded = True
+                    break
+                except Exception as e:
+                    if attempt < MAX_DISABLE_RETRIES - 1:
+                        _logger.warning("disable_all() attempt %d failed: %s, retrying...", attempt + 1, e)
+                        time.sleep(RETRY_DELAY_MS / 1000.0)
+                    else:
+                        self._disable_succeeded = False
+                        _logger.critical("SAFETY CRITICAL: All %d disable_all() attempts failed!", MAX_DISABLE_RETRIES)
+            # Continue with state transition - state should reflect E_STOP
+            # even though physical stop may have failed
 
             # Calculate latency (servo disable is the critical path)
             latency_ms = (time.perf_counter() - start_time) * 1000
@@ -531,15 +539,12 @@ class EmergencyStop:
             # Record event
             event = EmergencyStopEvent(
                 timestamp=time.time(),
+                monotonic_timestamp=time.monotonic(),
                 source=source,
                 latency_ms=latency_ms,
                 previous_state=previous_state
             )
             self._event_history.append(event)
-
-            # Issue #6: Trim event history if it exceeds maximum size
-            if len(self._event_history) > self.MAX_EVENT_HISTORY:
-                self._event_history = self._event_history[-self.MAX_EVENT_HISTORY:]
 
             return latency_ms
 
@@ -581,8 +586,8 @@ class EmergencyStop:
                 if self._gpio_monitoring_active and self._gpio is not None:
                     try:
                         self._gpio.remove_event_detect(self._gpio_pin)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        _logger.warning("Exception during GPIO cleanup (ignored for safety): %s", e)
                     self._gpio_monitoring_active = False
 
                 return self._set_state(SafetyState.INIT, source="reset")
@@ -644,8 +649,8 @@ class EmergencyStop:
                 try:
                     self._gpio.remove_event_detect(self._gpio_pin)
                     self._gpio.cleanup(self._gpio_pin)
-                except Exception:
-                    pass
+                except Exception as e:
+                    _logger.warning("Exception during GPIO cleanup (ignored for safety): %s", e)
                 self._gpio_monitoring_active = False
 
             # Clear callbacks

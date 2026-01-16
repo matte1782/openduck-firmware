@@ -693,3 +693,22 @@ class TestEdgeCases:
         for timeout in [50, 100, 500, 1000, 5000]:
             watchdog = ServoWatchdog(mock_estop, timeout_ms=timeout)
             assert watchdog.timeout_ms == timeout
+
+    def test_repr_returns_useful_string(self, mock_estop):
+        """__repr__ returns a useful debugging string with key info."""
+        watchdog = ServoWatchdog(mock_estop, timeout_ms=500)
+
+        repr_str = repr(watchdog)
+
+        # Should contain class name and key state info
+        assert "ServoWatchdog" in repr_str
+        assert "timeout_ms=500" in repr_str
+        assert "running=" in repr_str
+        assert "expired=" in repr_str
+
+        # Test state changes are reflected
+        watchdog.start()
+        repr_running = repr(watchdog)
+        assert "running=True" in repr_running
+
+        watchdog.stop()

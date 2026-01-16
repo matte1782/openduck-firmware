@@ -875,6 +875,53 @@ class TestEventHistory:
 
         e_stop.cleanup()
 
+    def test_event_has_monotonic_timestamp(
+        self, mock_gpio, mock_servo_driver
+    ) -> None:
+        """Test EmergencyStopEvent includes monotonic_timestamp for duration calculations."""
+        e_stop = EmergencyStop(
+            servo_driver=mock_servo_driver,
+            gpio_provider=mock_gpio
+        )
+        e_stop.start()
+
+        # Record monotonic time before trigger
+        before_monotonic = time.monotonic()
+        e_stop.trigger(source="test")
+        after_monotonic = time.monotonic()
+
+        events = e_stop.event_history
+        assert len(events) == 1
+
+        event = events[0]
+        # monotonic_timestamp should exist and be within expected range
+        assert hasattr(event, 'monotonic_timestamp')
+        assert event.monotonic_timestamp >= before_monotonic
+        assert event.monotonic_timestamp <= after_monotonic
+
+        e_stop.cleanup()
+
+    def test_monotonic_timestamp_immune_to_clock_changes(
+        self, mock_gpio, mock_servo_driver
+    ) -> None:
+        """Test monotonic_timestamp uses time.monotonic() not time.time()."""
+        e_stop = EmergencyStop(
+            servo_driver=mock_servo_driver,
+            gpio_provider=mock_gpio
+        )
+        e_stop.start()
+        e_stop.trigger(source="test")
+
+        event = e_stop.event_history[0]
+
+        # monotonic_timestamp should be reasonable (positive, not huge)
+        assert event.monotonic_timestamp > 0
+        # Should be much smaller than time.time() (which is Unix epoch seconds)
+        # monotonic typically starts from system boot, so much smaller than ~1.7 billion
+        assert event.monotonic_timestamp < event.timestamp
+
+        e_stop.cleanup()
+
     def test_event_history_is_copy(
         self, mock_gpio, mock_servo_driver
     ) -> None:
@@ -957,8 +1004,59 @@ class TestServoDriverFailure:
         # State should still transition
         assert e_stop.state == SafetyState.RESET_REQUIRED
 
-        # disable_all should have been attempted
-        assert mock_servo_driver.disable_all_calls == 1
+        # disable_all should have been attempted (with retries - MAX_DISABLE_RETRIES=3)
+        assert mock_servo_driver.disable_all_calls == 3  # All retry attempts
+
+        e_stop.cleanup()
+
+    def test_retry_stops_on_success(
+        self, mock_gpio, mock_servo_driver
+    ) -> None:
+        """Test retry logic stops after first successful disable_all()."""
+        # First call fails, second succeeds
+        mock_servo_driver.fail_count = 1  # Fail once then succeed
+
+        e_stop = EmergencyStop(
+            servo_driver=mock_servo_driver,
+            gpio_provider=mock_gpio
+        )
+        e_stop.start()
+
+        e_stop.trigger(source="test")
+
+        # Should have tried twice: first failed, second succeeded
+        assert mock_servo_driver.disable_all_calls == 2
+
+        e_stop.cleanup()
+
+    def test_retry_delay_between_attempts(
+        self, mock_gpio, mock_servo_driver
+    ) -> None:
+        """Test there is a delay between retry attempts (RETRY_DELAY_MS=1)."""
+        mock_servo_driver.raise_on_disable = True
+        call_times: List[float] = []
+
+        original_disable = mock_servo_driver.disable_all
+        def tracked_disable():
+            call_times.append(time.monotonic())
+            return original_disable()
+
+        mock_servo_driver.disable_all = tracked_disable
+
+        e_stop = EmergencyStop(
+            servo_driver=mock_servo_driver,
+            gpio_provider=mock_gpio
+        )
+        e_stop.start()
+        e_stop.trigger(source="test")
+
+        # Should have 3 attempts
+        assert len(call_times) == 3
+
+        # There should be some delay between attempts (at least 0.5ms each)
+        for i in range(1, len(call_times)):
+            delay_ms = (call_times[i] - call_times[i-1]) * 1000
+            assert delay_ms >= 0.5, f"Retry delay too short: {delay_ms}ms"
 
         e_stop.cleanup()
 

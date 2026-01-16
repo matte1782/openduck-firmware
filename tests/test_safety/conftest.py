@@ -142,6 +142,7 @@ class MockServoDriver:
         disable_all_calls: Number of times disable_all() was called
         disable_all_timestamps: List of timestamps when disable_all() was called
         raise_on_disable: If True, disable_all() raises RuntimeError
+        fail_count: Number of times to fail before succeeding (0 = use raise_on_disable)
         disable_latency_ms: Artificial latency to add to disable_all()
     """
 
@@ -150,6 +151,7 @@ class MockServoDriver:
         self.disable_all_calls: int = 0
         self.disable_all_timestamps: List[float] = []
         self.raise_on_disable: bool = False
+        self.fail_count: int = 0  # Number of failures before success
         self.disable_latency_ms: float = 0.0
         self._lock = threading.Lock()
 
@@ -159,13 +161,14 @@ class MockServoDriver:
             self.disable_all_calls = 0
             self.disable_all_timestamps.clear()
             self.raise_on_disable = False
+            self.fail_count = 0
             self.disable_latency_ms = 0.0
 
     def disable_all(self) -> None:
         """Disable all servo channels (mock implementation).
 
         Raises:
-            RuntimeError: If raise_on_disable is True.
+            RuntimeError: If raise_on_disable is True or fail_count > 0.
         """
         with self._lock:
             self.disable_all_timestamps.append(time.perf_counter())
@@ -173,6 +176,11 @@ class MockServoDriver:
 
             if self.disable_latency_ms > 0:
                 time.sleep(self.disable_latency_ms / 1000.0)
+
+            # If fail_count is set, fail that many times then succeed
+            if self.fail_count > 0:
+                self.fail_count -= 1
+                raise RuntimeError("Simulated servo driver error (fail_count)")
 
             if self.raise_on_disable:
                 raise RuntimeError("Simulated servo driver error")

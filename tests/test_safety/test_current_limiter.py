@@ -560,6 +560,37 @@ class TestEdgeCasesAndValidation:
         with pytest.raises(ValueError, match="num_channels"):
             CurrentLimiter(num_channels=-1)
 
+    def test_num_channels_max_limit_raises_value_error(self):
+        """Test num_channels > 256 raises ValueError (hostile review fix)."""
+        with pytest.raises(ValueError, match="num_channels must be <= 256"):
+            CurrentLimiter(num_channels=257)
+
+        with pytest.raises(ValueError, match="num_channels must be <= 256"):
+            CurrentLimiter(num_channels=1000000)
+
+        # 256 should be valid (max with address jumpers)
+        limiter = CurrentLimiter(num_channels=256)
+        assert limiter.num_channels == 256
+
+    def test_invalid_stall_timeout_raises_value_error(self):
+        """Test stall_timeout_s <= 0 raises ValueError (hostile review fix)."""
+        with pytest.raises(ValueError, match="stall_timeout_s must be positive"):
+            CurrentLimiter(stall_timeout_s=0.0)
+
+        with pytest.raises(ValueError, match="stall_timeout_s must be positive"):
+            CurrentLimiter(stall_timeout_s=-1.0)
+
+        with pytest.raises(ValueError, match="stall_timeout_s must be positive"):
+            CurrentLimiter(stall_timeout_s=-0.001)
+
+    def test_repr_returns_useful_string(self, limiter):
+        """Test __repr__ returns useful debugging information."""
+        repr_str = repr(limiter)
+        assert "CurrentLimiter" in repr_str
+        assert "num_channels=" in repr_str
+        assert "stall_timeout_s=" in repr_str
+        assert "max_duty_cycle=" in repr_str
+
     def test_reset_all_channels(self, limiter):
         """Test reset_all_channels clears all state."""
         # Set up various states
@@ -674,6 +705,33 @@ class TestServoCurrentProfile:
         assert profile.no_load_ma == 300.0
         assert profile.stall_ma == 1200.0
         assert profile.thermal_time_constant_s == 45.0
+
+    def test_negative_current_raises_value_error(self):
+        """Test negative current values raise ValueError (hostile review fix)."""
+        with pytest.raises(ValueError, match="non-negative"):
+            ServoCurrentProfile(idle_ma=-1.0)
+
+        with pytest.raises(ValueError, match="non-negative"):
+            ServoCurrentProfile(no_load_ma=-1.0)
+
+        with pytest.raises(ValueError, match="non-negative"):
+            ServoCurrentProfile(stall_ma=-1.0)
+
+    def test_idle_greater_than_stall_raises_value_error(self):
+        """Test idle_ma >= stall_ma raises ValueError (hostile review fix)."""
+        with pytest.raises(ValueError, match="idle_ma.*must be less than stall_ma"):
+            ServoCurrentProfile(idle_ma=1000.0, stall_ma=900.0)
+
+        with pytest.raises(ValueError, match="idle_ma.*must be less than stall_ma"):
+            ServoCurrentProfile(idle_ma=900.0, stall_ma=900.0)  # Equal also invalid
+
+    def test_invalid_thermal_time_constant_raises_value_error(self):
+        """Test non-positive thermal_time_constant_s raises ValueError (hostile review fix)."""
+        with pytest.raises(ValueError, match="thermal_time_constant_s must be positive"):
+            ServoCurrentProfile(thermal_time_constant_s=0.0)
+
+        with pytest.raises(ValueError, match="thermal_time_constant_s must be positive"):
+            ServoCurrentProfile(thermal_time_constant_s=-10.0)
 
 
 # =============================================================================

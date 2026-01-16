@@ -15,11 +15,14 @@ Safety Philosophy:
     - Non-blocking: watchdog runs in daemon thread, won't block program exit
 """
 
+import logging
 import threading
 import time
 from typing import Optional
 
 from .emergency_stop import EmergencyStop
+
+_logger = logging.getLogger(__name__)
 
 
 class ServoWatchdog:
@@ -153,9 +156,18 @@ class ServoWatchdog:
         # Signal thread to stop
         self._stop_event.set()
 
+        # Get local reference to thread to avoid race condition
+        # (another thread could set self._thread = None between check and join)
+        thread = self._thread
+
         # Wait for thread to exit (with timeout to prevent deadlock)
-        if self._thread is not None and self._thread.is_alive():
-            self._thread.join(timeout=1.0)
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=1.0)
+            if thread.is_alive():
+                _logger.warning(
+                    "Watchdog thread did not stop cleanly within 1 second - "
+                    "thread may be blocked or deadlocked"
+                )
 
         self._thread = None
 
@@ -193,6 +205,10 @@ class ServoWatchdog:
                     # Use time.monotonic() for consistent, NTP-immune timing
                     elapsed = time.monotonic() - self._last_feed_time
                     if elapsed >= self._timeout_sec:
+                        _logger.warning(
+                            "Watchdog timeout detected: no feed for %.3f seconds (limit: %.3f)",
+                            elapsed, self._timeout_sec
+                        )
                         self._expired = True
                         self._running = False
                         # Trigger inside lock to prevent race with feed()
@@ -205,6 +221,13 @@ class ServoWatchdog:
 
             # Sleep until next check (or until stop is requested)
             self._stop_event.wait(timeout=self._CHECK_INTERVAL_SEC)
+
+    def __repr__(self) -> str:
+        with self._lock:
+            return (
+                f"ServoWatchdog(timeout_ms={self._timeout_ms}, "
+                f"running={self._running}, expired={self._expired})"
+            )
 
     def __enter__(self) -> "ServoWatchdog":
         """Context manager entry - starts watchdog.
