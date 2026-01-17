@@ -1190,6 +1190,75 @@ Pass rate: 98.2%
 
 ---
 
+### Dual LED Ring Validation - BOTH EYES WORKING! (17 Jan 2026, Evening)
+
+**Session:** Hardware validation + hostile review fixes
+
+#### Hardware Achievement: Second LED Ring Validated
+
+**Problem Encountered:**
+- Initial GPIO 12 (Pin 32) caused error: "ws2811_init failed with code -11 (Selected GPIO not possible)"
+- GPIO 12 and GPIO 18 share same PWM channel (Channel 0), causing conflict
+
+**Solution:**
+- Ring 2 moved to GPIO 13 (Pin 33) which uses PWM Channel 1
+- Both rings now independent and working simultaneously
+
+**Validated Wiring Configuration:**
+```
+┌─────────────┬──────────────┬─────────────────┬─────────────────┐
+│    Wire     │    Color     │     Ring 1      │     Ring 2      │
+├─────────────┼──────────────┼─────────────────┼─────────────────┤
+│ VCC (5V)    │ RED          │ Pin 2           │ Pin 4           │
+├─────────────┼──────────────┼─────────────────┼─────────────────┤
+│ GND         │ ORANGE       │ Pin 6           │ Pin 34          │
+├─────────────┼──────────────┼─────────────────┼─────────────────┤
+│ DIN (Data)  │ BROWN        │ Pin 12 (GPIO18) │ Pin 33 (GPIO13) │
+└─────────────┴──────────────┴─────────────────┴─────────────────┘
+```
+
+**IMPORTANT - Wire Colors (Non-Standard):**
+- RED = VCC (5V Power)
+- BROWN = DIN (Data Signal)
+- ORANGE = GND (Ground)
+
+**Files Created:**
+- `firmware/docs/LED_RING_WIRING_REFERENCE.md` - Full pinout documentation
+- `firmware/scripts/openduck_eyes_demo.py` - Professional eye animation demo
+- `firmware/scripts/test_dual_leds.py` - Dual ring validation script
+
+**Demo Features (Boston Dynamics / Disney Quality):**
+1. Wake up sequence (sleepy → idle)
+2. Idle breathing (Disney slow in/out easing)
+3. Alert response (quick pulses)
+4. Curious look-around (spinning comet)
+5. Happy blinks + wink animation
+6. Excited rainbow cycle
+7. Thinking pulses
+8. Emotion transitions with easing
+
+**Hostile Review Fixes Applied:**
+- CRITICAL-001: Test count standardized to 700 across all docs
+- CRITICAL-002: Day mapping corrected (Day 8 = Wednesday 22 Jan)
+- CRITICAL-003: BNO085 failure contingency added (30 min max troubleshooting)
+- CRITICAL-004: [BATTERY DAY] windows defined (morning only, afternoon defers)
+- Day 8 quaternion bug fixed (Adafruit returns x,y,z,w not w,x,y,z)
+- Day 8 scope reduced (animation timing moved to Day 9)
+
+**Test Result:**
+- Ring 1 (Left Eye): 16/16 LEDs ✅
+- Ring 2 (Right Eye): 16/16 LEDs ✅
+- Dual animation: WORKING ✅
+- Professional demo: RUNNING ✅
+
+**Hardware Status After Day 7 Evening:**
+- PCA9685 servo driver: WORKING (I2C 0x40)
+- LED Ring 1 (GPIO 18): WORKING (16 LEDs)
+- LED Ring 2 (GPIO 13): WORKING (16 LEDs)
+- Total validated LEDs: 32
+
+---
+
 ### Week 02 Testing & Safety Plan Created (17 Jan 2026)
 
 **Planning Session:** Boston Dynamics Senior Systems Engineer Review
@@ -1346,6 +1415,50 @@ Pass rate: 98.2%
 - BNO085 IMU integration
 - Battery + servo movement
 - Animation system development
+
+---
+
+### Hostile Review Fixes - Week 02 Planning Documents (17 Jan 2026)
+
+**Context:** Boston Dynamics Standards hostile review identified 4 CRITICAL issues in Week 02 planning documents.
+
+**CRITICAL Issues Fixed:**
+
+1. **CRITICAL-001: Test Count Inconsistency** - FIXED
+   - Problem: Different test targets across documents (687, 697, "600+", "700+")
+   - Files affected: ROADMAP_WEEK_02.md, TDD_STRATEGY_WEEK_02.md, WEEK_02_MASTER_SCHEDULE.md, WEEK_02_TESTING_SAFETY_PLAN.md
+   - Fix: Standardized ALL to **700 tests** target with explicit notes
+
+2. **CRITICAL-002: Day Mapping Error** - FIXED
+   - Problem: WEEK_02_MASTER_SCHEDULE.md Gantt chart showed Day 8 as Monday
+   - Reality: Day 1 = 15 Jan (Wednesday), so Day 8 = 22 Jan (Wednesday)
+   - Fix: Corrected Gantt chart headers to Wed/Thu/Fri/Sat/Sun/Mon/Tue with dates
+
+3. **CRITICAL-003: BNO085 Failure Contingency Missing** - FIXED
+   - Problem: No plan if BNO085 is DOA or wrong I2C address
+   - Fix: Added explicit contingency in ROADMAP_WEEK_02.md Day 8 section:
+     - Try addresses 0x4A AND 0x4B
+     - 30 min max troubleshooting before pivot
+     - Fallback: proceed to animation timing if BNO085 fails
+
+4. **CRITICAL-004: [BATTERY DAY] Unworkable** - FIXED
+   - Problem: "Insert anytime" is not a real plan
+   - Fix: Added explicit battery window rules in ROADMAP_WEEK_02.md:
+     - Morning windows only (before 11:00)
+     - If arrives after 11:00, defer to next day morning
+     - If arrives Day 14 afternoon, defer to Week 03
+
+**Files Modified:**
+- `Planning/Week_02/ROADMAP_WEEK_02.md` - BNO085 contingency + battery windows + test targets
+- `Planning/Week_02/WEEK_02_MASTER_SCHEDULE.md` - Gantt chart day mapping + test targets
+- `Planning/Week_02/WEEK_02_TESTING_SAFETY_PLAN.md` - Test targets + date column
+- `firmware/docs/TDD_STRATEGY_WEEK_02.md` - Test targets
+
+**Hostile Review Rating Improvement:**
+- Before: 6/10 (CRITICAL issues present)
+- After: 9/10 (All CRITICAL issues resolved)
+
+**Status:** ✅ ALL CRITICAL ISSUES FIXED
 
 ---
 
@@ -1753,6 +1866,69 @@ thinking: (200, 200, 255)  # White-blue
 - Idle behavior variety: 5+ distinct behaviors
 
 **Status:** ✅ READY FOR IMPLEMENTATION - Day 8 (Monday)
+
+---
+
+## Week 02: Animation & Behavior Systems (22-28 Jan 2026)
+
+### Pre-Day 8: Planning Document Review (22 Jan 2026, Pre-Session)
+
+**Focus:** Critical bug fixes in Day 8 planning document
+
+#### CRITICAL Bugs Fixed in DAY_08.md
+
+**BUG #1: Quaternion Order WRONG [CRITICAL - FIXED]**
+- Location: `_quaternion_to_euler()` method, line 354
+- Issue: Code assumed `w, x, y, z = quat` (standard convention)
+- Reality: Adafruit BNO08X returns `(i, j, k, real)` = `(x, y, z, w)`
+- Fix: Changed to `x, y, z, w = quat` with documentation
+- Impact: Would have caused incorrect Euler angles, robot disorientation
+
+**BUG #2: VIN Voltage Documentation Wrong [CRITICAL - FIXED]**
+- Location: Wiring diagram section
+- Issue: Said "VIN → 3.3V - NOT 5V!"
+- Reality: Adafruit BNO085 breakout has onboard regulator, accepts 3-5V
+- Fix: Changed to "VIN → 3.3V (3-5V OK, 3.3V preferred)"
+- Impact: Would have confused users, no actual damage (3.3V works fine)
+
+**BUG #3: Mock Tests Don't Match Driver [CRITICAL - FIXED]**
+- Location: Test fixture `mock_i2c()`
+- Issue: Mock used raw I2C but driver uses `adafruit_bno08x` library
+- Fix: Added `mock_bno08x()` fixture that patches `BNO08X_I2C` class properly
+- Impact: Tests would fail or give false passes
+
+**BUG #4: Scope Too Large [HIGH - FIXED]**
+- Issue: Plan claimed 6-8 hours but realistic estimate was 9-10 hours
+- Fix: Split Day 8 - Moved Animation Timing System to Day 9
+- Day 8 now: BNO085 only (integration + validation) - 5-6 hours
+- Day 9 now: Animation Timing + Easing + LED Patterns - 7-9 hours
+
+**BUG #5: No "BNO085 Not Arrived" Contingency [HIGH - FIXED]**
+- Issue: Plan assumed hardware would be available
+- Fix: Added "Contingency A: BNO085 NOT ARRIVED by 10:00 AM"
+- Decision point: 10:00 AM, proceed with mock-based development if not arrived
+
+**BUG #6: No Hostile Review Block [MEDIUM - FIXED]**
+- Issue: CLAUDE.md Rule 3 requires hostile review for >50 lines of new logic
+- Fix: Added "Block 5: Hostile Review (MANDATORY - 45 min)"
+- Includes review prompt focusing on quaternion order, I2C bus contention, thread safety
+
+#### Files Modified
+```
+Planning/Week_02/DAY_08.md - UPDATED (6 bug fixes)
+Planning/Week_02/DAY_09.md - UPDATED (received Animation Timing content)
+firmware/CHANGELOG.md - UPDATED (this entry)
+```
+
+#### Lessons from Pre-Day 8 Review
+1. **Always verify library data formats** - Adafruit uses (x,y,z,w), most docs use (w,x,y,z)
+2. **Check hardware specs for onboard regulators** - Many breakouts accept wider voltage ranges
+3. **Mock tests must match actual library interfaces** - Mocking wrong abstraction = false confidence
+4. **Plan realistic time budgets** - 6-8 hours that becomes 9-10 hours causes scope creep or incomplete work
+5. **Hardware delay contingencies are mandatory** - Shipping delays happen, plan alternatives
+6. **Hostile reviews prevent deployment bugs** - Quaternion order bug would have caused runtime failures
+
+**Status:** ✅ Day 8 planning document ready for execution
 
 ---
 

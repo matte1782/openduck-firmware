@@ -436,15 +436,16 @@ def test_animation_timing_accuracy():
 
 | Day | Milestone | Tests Added | Cumulative |
 |-----|-----------|-------------|------------|
-| Day 8 | BNO085 Driver | +25 | 477 |
-| Day 9 | Servo Calibration | +30 | 507 |
-| Day 10 | Animation Timing | +40 | 547 |
-| Day 11 | LED Patterns + Emotions | +65 | 612 |
-| Day 12 | Head Controller | +25 | 637 |
-| Day 13 | Integration Tests | +20 | 657 |
-| Day 14 | Hardware Tests | +30 | 687 |
+| Day 8 | BNO085 Driver | +50 | 502 |
+| Day 9 | Easing + LED Patterns | +48 | 550 |
+| Day 10 | Emotion System | +40 | 590 |
+| Day 11 | Head Controller + Color | +35 | 625 |
+| Day 12 | Integration Tests | +35 | 660 |
+| Day 13 | Polish + Edge Cases | +15 | 675 |
+| Day 14 | Final Validation | +5 | 680 |
+| [BATTERY] | Hardware Tests | +20 | 700 |
 
-**Week 02 Target:** 687 tests, 95%+ pass rate
+**Week 02 Target:** 700 tests, 95%+ pass rate (standardized across all planning documents)
 
 ---
 
@@ -496,7 +497,7 @@ def test_imu_handles_i2c_nak(mock_i2c):
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Test Count | 687+ | `pytest --collect-only | grep test` |
+| Test Count | 700 | `pytest --collect-only | grep test` |
 | Pass Rate | 95%+ | `pytest --tb=no` |
 | Coverage | 90%+ | `pytest --cov=src` |
 | Execution Time | <60s unit | `time pytest -m unit` |
