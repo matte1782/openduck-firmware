@@ -1932,6 +1932,77 @@ firmware/CHANGELOG.md - UPDATED (this entry)
 
 ---
 
+### Saturday Prep Plan Created (18 Jan 2026)
+
+**Context:** Boston Dynamics Animation Systems Engineer planning session for Saturday preparation work.
+
+**Document Created:**
+- `Planning/Weekend_Prep/SATURDAY_18_JAN.md` (~2,000 lines)
+
+**Plan Contents:**
+
+1. **Pre-Flight Checklist**
+   - SSH connection verification
+   - I2C bus check (PCA9685 at 0x40)
+   - LED ring validation test
+   - Python environment verification
+
+2. **Morning Session: LED Pattern Implementation (2 hours)**
+   - Directory structure creation
+   - Base pattern class with Disney animation principles
+   - BreathingPattern: Sine wave LUT, 4-second cycle, 30-100% intensity
+   - PulsePattern: Heartbeat double-pulse (60 BPM base, speed-adjustable)
+   - SpinPattern: Rotating comet with 4-pixel tail
+   - Package init files with pattern registry
+   - TDD test suite (40+ tests)
+
+3. **Afternoon Session: Animation Timing System (2-3 hours)**
+   - Easing functions module with LUT optimization
+   - Keyframe dataclass with validation
+   - AnimationSequence with multi-keyframe interpolation
+   - AnimationPlayer for real-time playback
+   - TDD test suite (30+ tests)
+
+4. **Hardware Validation Script**
+   - `saturday_led_test.py` for pattern validation on actual hardware
+   - Tests all 3 patterns at 50Hz
+   - Reports FPS and pass/fail status
+
+5. **Go/No-Go Criteria**
+   - Pattern tests: 40+ passing
+   - Animation tests: 30+ passing
+   - Hardware validation: All 3 patterns >= 45 FPS
+   - Zero Python exceptions
+
+**Code Included (Copy-Ready):**
+- `src/led/patterns/base.py` (~180 lines)
+- `src/led/patterns/breathing.py` (~90 lines)
+- `src/led/patterns/pulse.py` (~100 lines)
+- `src/led/patterns/spin.py` (~70 lines)
+- `src/led/patterns/__init__.py` (~30 lines)
+- `tests/test_led/test_patterns.py` (~400 lines)
+- `src/animation/easing.py` (~90 lines)
+- `src/animation/timing.py` (~200 lines)
+- `src/animation/__init__.py` (~30 lines)
+- `tests/test_animation/test_timing.py` (~300 lines)
+- `scripts/saturday_led_test.py` (~100 lines)
+
+**Total: ~1,600 lines of production code + tests**
+
+**Hardware Prerequisites (Already Validated):**
+- LED Ring 1 (Left Eye): GPIO 18, Pin 12 - WORKING
+- LED Ring 2 (Right Eye): GPIO 13, Pin 33 - WORKING
+- Wire colors: RED=VCC, BROWN=Data, ORANGE=GND
+
+**Time Budget:**
+- Morning: 2 hours 20 minutes
+- Afternoon: 2 hours 40 minutes
+- Total: 5 hours
+
+**Status:** ✅ READY FOR EXECUTION - 18 January 2026
+
+---
+
 ## Summary Statistics (Week 01)
 
 **Target Metrics:**
