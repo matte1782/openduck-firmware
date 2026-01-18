@@ -1,0 +1,85 @@
+# Robot Configuration - OpenDuck Mini V3
+# Central configuration file for robot subsystems
+# Created: 18 January 2026
+
+# =================================================================
+# HEAD CONTROLLER (Day 11)
+# Pan/Tilt head control with Disney animation principles
+# =================================================================
+head:
+  enabled: true
+  pan_channel: 12      # PCA9685 channel for pan servo
+  tilt_channel: 13     # PCA9685 channel for tilt servo
+
+  limits:
+    pan_min: -90       # Minimum pan angle (degrees, negative = left)
+    pan_max: 90        # Maximum pan angle (degrees, positive = right)
+    tilt_min: -45      # Minimum tilt angle (degrees, negative = down)
+    tilt_max: 45       # Maximum tilt angle (degrees, positive = up)
+    pan_center: 0      # Center/home position for pan
+    tilt_center: 0     # Center/home position for tilt
+
+  servo_config:
+    pan_inverted: false
+    tilt_inverted: false
+
+  animation:
+    default_speed_ms: 300       # Default movement duration (ms)
+    easing: 'ease_in_out'       # Default easing function
+    nod_amplitude: 15           # Default nod amplitude (degrees)
+    shake_amplitude: 20         # Default shake amplitude (degrees)
+    glance_max_deviation: 30    # Max random glance offset (degrees)
+    glance_hold_ms: 500         # Duration to hold glance position
+
+  safety:
+    velocity_limit_deg_per_sec: 180    # Max angular velocity
+    soft_limit_margin: 10              # Degrees inside hard limits for soft warning
+
+# =================================================================
+# LED SYSTEM
+# NeoPixel LED configuration for eye displays and status
+# =================================================================
+leds:
+  enabled: true
+  left_eye:
+    pin: 12            # GPIO pin for left eye LED strip
+    count: 37          # Number of LEDs (37-LED matrix)
+    brightness: 0.8    # Default brightness (0.0 - 1.0)
+  right_eye:
+    pin: 13            # GPIO pin for right eye LED strip
+    count: 37          # Number of LEDs (37-LED matrix)
+    brightness: 0.8    # Default brightness (0.0 - 1.0)
+
+  animation:
+    update_rate_hz: 50          # Animation update rate
+    color_transition_ms: 300    # Default color transition duration
+    use_hsv_interpolation: true # Use HSV arc for color transitions
+
+# =================================================================
+# I2C DEVICES
+# =================================================================
+i2c:
+  bus: 1                        # I2C bus number (RPi default)
+  pca9685:
+    address: 0x40               # PCA9685 default address
+    frequency: 50               # PWM frequency (50Hz for servos)
+
+# =================================================================
+# AUDIO SYSTEM
+# =================================================================
+audio:
+  enabled: true
+  i2s:
+    bck_pin: 18                 # I2S bit clock
+    ws_pin: 19                  # I2S word select
+    data_out_pin: 21            # I2S data out
+  sample_rate: 44100
+  channels: 1
+
+# =================================================================
+# SAFETY SYSTEM
+# =================================================================
+safety:
+  emergency_stop_pin: 26        # GPIO for emergency stop button
+  watchdog_timeout_ms: 1000     # Watchdog timer timeout
+  startup_delay_ms: 500         # Delay before enabling servos
