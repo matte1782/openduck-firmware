@@ -10,6 +10,10 @@ Components:
     - CurrentLimiter: Per-servo current estimation and thermal protection
     - ServoCurrentProfile: Servo electrical characteristics configuration
     - StallCondition: Stall detection state enumeration
+    - LEDSafetyManager: LED power management and fail-safe mechanisms
+    - LEDRingProfile: LED ring electrical characteristics configuration
+    - PowerSource: LED power source enumeration
+    - SafetyLevel: LED safety level enumeration
 """
 
 # Emergency stop system
@@ -20,6 +24,15 @@ from .watchdog import ServoWatchdog
 
 # Current limiting and stall detection
 from .current_limiter import CurrentLimiter, ServoCurrentProfile, StallCondition
+
+# LED safety system
+from .led_safety import (
+    LEDSafetyManager,
+    LEDRingProfile,
+    PowerSource,
+    SafetyLevel,
+    CurrentEstimate,
+)
 
 __version__ = "0.1.0"
 
@@ -33,6 +46,12 @@ __all__ = [
     "CurrentLimiter",
     "ServoCurrentProfile",
     "StallCondition",
+    # LED safety
+    "LEDSafetyManager",
+    "LEDRingProfile",
+    "PowerSource",
+    "SafetyLevel",
+    "CurrentEstimate",
     # Module version
     "__version__",
 ]

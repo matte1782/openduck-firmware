@@ -18,9 +18,9 @@ def mock_hardware():
     """Mock hardware dependencies for testing."""
     with patch('src.drivers.i2c_bus_manager.board') as mock_board, \
          patch('src.drivers.i2c_bus_manager.busio') as mock_busio, \
-         patch('src.drivers.servo.pca9685_i2c_fixed.board') as mock_pca_board, \
-         patch('src.drivers.servo.pca9685_i2c_fixed.busio') as mock_pca_busio, \
-         patch('src.drivers.servo.pca9685_i2c_fixed.PCA9685') as mock_pca9685_class:
+         patch('src.drivers.servo.pca9685.board') as mock_pca_board, \
+         patch('src.drivers.servo.pca9685.busio') as mock_pca_busio, \
+         patch('src.drivers.servo.pca9685.PCA9685') as mock_pca9685_class:
 
         # Configure mocks
         mock_board.SCL = Mock()
@@ -52,7 +52,7 @@ class TestPCA9685I2CIntegration:
 
     def test_pca9685_uses_bus_manager(self, mock_hardware):
         """Verify PCA9685 uses I2C bus manager singleton."""
-        from src.drivers.servo.pca9685_i2c_fixed import PCA9685Driver
+        from src.drivers.servo.pca9685 import PCA9685Driver
         from src.drivers.i2c_bus_manager import I2CBusManager
 
         # Reset singleton
@@ -72,7 +72,7 @@ class TestPCA9685I2CIntegration:
 
     def test_servo_operations_lock_bus(self, mock_hardware):
         """Verify servo operations acquire bus lock."""
-        from src.drivers.servo.pca9685_i2c_fixed import PCA9685Driver
+        from src.drivers.servo.pca9685 import PCA9685Driver
         from src.drivers.i2c_bus_manager import I2CBusManager
 
         # Reset singleton
@@ -106,7 +106,7 @@ class TestPCA9685I2CIntegration:
 
     def test_no_bus_collision_multiple_devices(self, mock_hardware):
         """Verify no bus collisions between PCA9685 and simulated BNO085."""
-        from src.drivers.servo.pca9685_i2c_fixed import PCA9685Driver
+        from src.drivers.servo.pca9685 import PCA9685Driver
         from src.drivers.i2c_bus_manager import I2CBusManager
 
         # Reset singleton
@@ -156,7 +156,7 @@ class TestPCA9685I2CIntegration:
 
     def test_multi_servo_control_thread_safe(self, mock_hardware):
         """Test multiple threads controlling different servos."""
-        from src.drivers.servo.pca9685_i2c_fixed import PCA9685Driver
+        from src.drivers.servo.pca9685 import PCA9685Driver
         from src.drivers.i2c_bus_manager import I2CBusManager
 
         # Reset singleton
@@ -198,7 +198,7 @@ class TestPCA9685I2CIntegration:
 
     def test_emergency_stop_releases_lock(self, mock_hardware):
         """Verify emergency stop properly releases I2C lock."""
-        from src.drivers.servo.pca9685_i2c_fixed import PCA9685Driver
+        from src.drivers.servo.pca9685 import PCA9685Driver
         from src.drivers.i2c_bus_manager import I2CBusManager
 
         # Reset singleton
@@ -225,7 +225,7 @@ class TestPCA9685I2CIntegration:
 
     def test_servo_controller_with_bus_manager(self, mock_hardware):
         """Test ServoController works with I2C bus manager."""
-        from src.drivers.servo.pca9685_i2c_fixed import PCA9685Driver, ServoController
+        from src.drivers.servo.pca9685 import PCA9685Driver, ServoController
         from src.drivers.i2c_bus_manager import I2CBusManager
 
         # Reset singleton
@@ -256,7 +256,7 @@ class TestPCA9685BackwardCompatibility:
 
     def test_initialization_same_interface(self, mock_hardware):
         """Verify initialization interface unchanged."""
-        from src.drivers.servo.pca9685_i2c_fixed import PCA9685Driver
+        from src.drivers.servo.pca9685 import PCA9685Driver
 
         # Reset singleton
         from src.drivers.i2c_bus_manager import I2CBusManager
@@ -271,7 +271,7 @@ class TestPCA9685BackwardCompatibility:
 
     def test_all_methods_still_work(self, mock_hardware):
         """Verify all existing methods still work."""
-        from src.drivers.servo.pca9685_i2c_fixed import PCA9685Driver
+        from src.drivers.servo.pca9685 import PCA9685Driver
         from src.drivers.i2c_bus_manager import I2CBusManager
 
         # Reset singleton

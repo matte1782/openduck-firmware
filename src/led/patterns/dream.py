@@ -23,7 +23,23 @@ import random
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from noise import pnoise2
+try:
+    from noise import pnoise2
+except (ImportError, ModuleNotFoundError):
+    # Fallback to pure Python implementation
+    try:
+        from src.noise import pnoise2
+    except ImportError:
+        from perlin_noise import PerlinNoise
+        import functools
+        
+        @functools.lru_cache(maxsize=4)
+        def _get_noise(octaves):
+            return PerlinNoise(octaves=octaves)
+        
+        def pnoise2(x, y, octaves=1, persistence=0.5, lacunarity=2.0, repeatx=1024, repeaty=1024, base=0):
+            noise_gen = _get_noise(octaves)
+            return noise_gen([x, y])
 
 from .base import PatternBase, PatternConfig, RGB
 

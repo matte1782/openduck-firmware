@@ -43,16 +43,28 @@ i2c:
 # =================================================================
 gpio:
   # WS2812B NeoPixel LED Rings
+  # ⚠️ NOTE: Ring 1 configuration depends on GPIO 18 conflict resolution status
+  #
+  # CURRENT (Option A - Weekend):
+  #   - Ring 1 uses GPIO 18 (conflicts with I2S, but I2S is disabled)
+  #   - Ring 2 uses GPIO 13 (no conflicts)
+  #
+  # FUTURE (Option B - Week 02):
+  #   - Ring 1 will move to GPIO 10 (permanent solution)
+  #   - Ring 2 stays on GPIO 13
+  #
+  # See GPIO_CONFLICT_RESOLUTION.md for details
   neopixel:
-    # Primary LED ring (16 LEDs)
+    # Primary LED ring (16 LEDs) - Left Eye
     ring_1:
-      data_pin: 10  # GPIO 10 (SPI0 MOSI, Physical pin 19)
+      data_pin: 18  # GPIO 18 (PWM0, Physical pin 12) ⚠️ CONFLICTS WITH I2S
+                    # MIGRATION PLANNED: Will move to GPIO 10 (Pin 19) in Week 02
       num_leds: 16
       brightness: 0.5  # 0.0-1.0
 
-    # Secondary LED ring (16 LEDs)
+    # Secondary LED ring (16 LEDs) - Right Eye
     ring_2:
-      data_pin: 12  # GPIO 12 (PWM0, Physical pin 32)
+      data_pin: 13  # GPIO 13 (PWM1, Physical pin 33) ✅ NO CONFLICTS
       num_leds: 16
       brightness: 0.5
 
@@ -86,13 +98,26 @@ gpio:
 # =================================================================
 # I2S AUDIO
 # =================================================================
+# ⚠️ WARNING: GPIO 18 CONFLICT WITH LED RING 1
+# I2S BCLK uses GPIO 18, which conflicts with LED Ring 1 (see below)
+#
+# RESOLUTION (Option A - Weekend Workaround):
+#   - I2S audio is DISABLED via /boot/firmware/config.txt
+#   - This allows LED Ring 1 to use GPIO 18 without interference
+#   - Run: sudo bash firmware/scripts/disable_i2s_audio.sh
+#
+# PERMANENT FIX (Week 02 - Option B):
+#   - Move LED Ring 1 from GPIO 18 → GPIO 10
+#   - Re-enable I2S audio
+#   - See: firmware/docs/GPIO_10_MIGRATION_GUIDE.md
+# =================================================================
 i2s:
   # MAX98357A Audio Amplifier
   max98357a:
-    enabled: true
+    enabled: false  # DISABLED due to GPIO 18 conflict (was: true)
 
     # I2S pin connections
-    bclk_pin: 18  # Bit clock (GPIO 18, Physical pin 12)
+    bclk_pin: 18  # Bit clock (GPIO 18, Physical pin 12) ⚠️ CONFLICTS WITH LED RING 1
     lrclk_pin: 19  # Left/Right clock (GPIO 19, Physical pin 35)
     din_pin: 21   # Data in (GPIO 21, Physical pin 40)
 
@@ -101,7 +126,7 @@ i2s:
 
   # INMP441 MEMS Microphone
   inmp441:
-    enabled: false  # Enable when testing audio
+    enabled: false  # Enable when testing audio (after GPIO conflict resolved)
 
     # I2S pin connections (shared bus with amplifier)
     bclk_pin: 18

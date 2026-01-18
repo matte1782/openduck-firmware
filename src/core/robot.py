@@ -43,7 +43,7 @@ from .robot_state import (
     HardwareError,
 )
 from .safety_coordinator import SafetyCoordinator
-from ..kinematics.arm_kinematics import ArmKinematics
+from kinematics.arm_kinematics import ArmKinematics
 
 _logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ class Robot:
         self._servo_driver: Optional[Any] = None
         if enable_hardware and servo_driver is None:
             try:
-                from ..drivers.servo.pca9685 import PCA9685Driver
+                from drivers.servo.pca9685 import PCA9685Driver
                 self._servo_driver = PCA9685Driver()
             except Exception as e:
                 _logger.warning("Failed to create default servo driver: %s", e)
