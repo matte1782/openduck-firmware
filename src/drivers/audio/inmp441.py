@@ -471,10 +471,13 @@ class INMP441Driver:
                 with self._lock:
                     self._state = CaptureState.ERROR
                     self._error_message = "Capture thread failed to stop"
+                    # FIX H2-HIGH-004: Clear thread reference even on failure
+                    self._capture_thread = None
                 return False
 
         with self._lock:
             self._state = CaptureState.STOPPED
+            # FIX H2-HIGH-004: Clear thread reference on success
             self._capture_thread = None
 
         return True
@@ -535,15 +538,21 @@ class INMP441Driver:
                     except queue.Empty:
                         pass
 
-            # Open input stream
-            self._stream = sd.InputStream(
-                samplerate=self.config.sample_rate,
-                blocksize=self.config.buffer_frames,
-                device=self.config.device_index,
-                channels=self.config.channels,
-                dtype='float32',
-                callback=audio_callback
-            )
+            # FIX H2-HIGH-001: Wrap stream creation to handle exceptions properly
+            try:
+                # Open input stream
+                self._stream = sd.InputStream(
+                    samplerate=self.config.sample_rate,
+                    blocksize=self.config.buffer_frames,
+                    device=self.config.device_index,
+                    channels=self.config.channels,
+                    dtype='float32',
+                    callback=audio_callback
+                )
+            except Exception as e:
+                # Stream creation failed - ensure reference is cleared
+                self._stream = None
+                raise  # Re-raise to be caught by outer handler
 
             with self._stream:
                 with self._lock:
@@ -557,6 +566,13 @@ class INMP441Driver:
             with self._lock:
                 self._state = CaptureState.ERROR
                 self._error_message = str(e)
+                # FIX H2-HIGH-001: Ensure stream is cleaned up on any exception
+                if self._stream is not None:
+                    try:
+                        self._stream.close()
+                    except Exception:
+                        pass
+                    self._stream = None
 
     def _mock_capture_loop(self):
         """Mock capture loop for testing without hardware."""

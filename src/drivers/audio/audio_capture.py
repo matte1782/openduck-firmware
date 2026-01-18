@@ -46,6 +46,7 @@ Example:
 
 from __future__ import annotations
 
+import logging
 import math
 import threading
 import time
@@ -54,6 +55,9 @@ from enum import Enum, auto
 from typing import Callable, List, Optional, Tuple
 
 import numpy as np
+
+# FIX H2-HIGH-003: Add logger for error handling
+_logger = logging.getLogger(__name__)
 
 # I2S audio library imports (platform-specific)
 try:
@@ -689,17 +693,23 @@ class AudioCapturePipeline:
                 self._state = AudioCaptureState.ERROR
             raise RuntimeError(f"Failed to start audio capture: {e}")
 
-    def stop(self) -> None:
+    def stop(self) -> bool:
         """Stop audio capture.
 
         Signals capture thread to stop and waits for completion.
+
+        Returns:
+            bool: True if stopped successfully, False if thread failed to stop.
+
+        Note:
+            FIX H2-HIGH-002: Consistent bool return type for all paths.
         """
         with self._state_lock:
             if self._state == AudioCaptureState.STOPPED:
-                return  # Already stopped
+                return True  # Already stopped
 
             if self._state == AudioCaptureState.STOPPING:
-                return  # Already stopping
+                return True  # Already stopping
 
             self._state = AudioCaptureState.STOPPING
 
@@ -712,10 +722,17 @@ class AudioCapturePipeline:
                 _logger.error("Capture thread failed to stop within 2.0s timeout")
                 with self._state_lock:
                     self._state = AudioCaptureState.ERROR
+                # FIX H2-HIGH-004: Clear thread reference even on failure
+                self._capture_thread = None
                 return False
+
+        # FIX H2-HIGH-004: Clear thread reference on success
+        self._capture_thread = None
 
         with self._state_lock:
             self._state = AudioCaptureState.STOPPED
+
+        return True
 
     def _capture_loop(self) -> None:
         """Background capture loop.
