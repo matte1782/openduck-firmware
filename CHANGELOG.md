@@ -11979,3 +11979,26 @@ except ImportError:
 
 ---
 
+### Day 16 Preview - Tuesday, 21 January 2026
+
+**Focus:** INMP441 Hardware Validation on Raspberry Pi
+
+**FIRST TASK:** Pi hardware test of INMP441 microphone
+- USB power only (no batteries needed)
+- Wire INMP441 to Pi Zero 2W via I2S
+- Validate audio capture driver works on real hardware
+- Test real-time dB level monitoring
+
+**Wiring Required:**
+| INMP441 | Pi Pin | GPIO |
+|---------|--------|------|
+| VDD | Pin 1 | 3.3V |
+| GND | Pin 6 | GND |
+| SCK | Pin 12 | GPIO 18 |
+| WS | Pin 35 | GPIO 19 |
+| SD | Pin 38 | GPIO 20 |
+
+**Note:** LED Ring 1 not connected during this test (GPIO 18 conflict avoided)
+
+---
+
