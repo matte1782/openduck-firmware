@@ -25,8 +25,13 @@ import threading
 from dataclasses import dataclass, field
 from typing import Tuple, Optional, List
 
-# FIX H-004: Use relative import for better portability
-from ..animation.easing import ease, EASING_LUTS
+# FIX D14-001: Conditional import for both package and path-based usage
+# - Package import: from src.led.color_utils (uses src.animation.easing)
+# - Path import: when src/ is in sys.path (uses animation.easing)
+try:
+    from animation.easing import ease, EASING_LUTS
+except ImportError:
+    from src.animation.easing import ease, EASING_LUTS
 
 # =============================================================================
 # Type Definitions
