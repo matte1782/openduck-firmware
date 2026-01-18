@@ -331,6 +331,9 @@ class EmotionBridge:
                 f"got {transition_ms}"
             )
 
+        # FIX H-004: Capture callback data for invocation outside lock
+        callback_data = None
+
         with self._lock:
             _logger.info(
                 f"Setting emotion: {emotion.value} "
@@ -358,18 +361,24 @@ class EmotionBridge:
             # Apply LED pattern
             self._apply_led_pattern(emotion)
 
-            # Fire callback if set
+            # Capture callback data for invocation outside lock
             if self._on_emotion_change is not None and self._current_axes is not None:
                 expression = self.get_expression_for_emotion(self._current_axes)
-                try:
-                    self._on_emotion_change(self._current_axes, expression)
-                except Exception as e:
-                    _logger.warning(f"Emotion change callback error: {e}")
+                callback_data = (self._on_emotion_change, self._current_axes, expression)
 
             _logger.debug(
                 f"Emotion changed: {old_emotion.value} -> {emotion.value}"
             )
-            return True
+
+        # FIX H-004: Fire callback OUTSIDE the lock to prevent deadlock
+        if callback_data:
+            callback, axes, expression = callback_data
+            try:
+                callback(axes, expression)
+            except Exception as e:
+                _logger.warning(f"Emotion change callback error: {e}")
+
+        return True
 
     def get_emotion(self) -> EmotionState:
         """
@@ -562,7 +571,8 @@ class EmotionBridge:
 
         # Calculate head movement speed based on arousal
         # Higher arousal = faster movement
-        head_speed = 0.7 + (axes.arousal + 1.0) * 0.3  # Maps [-1,1] to [0.4, 1.3]
+        # FIX M-003: Corrected comment - arousal [-1,1] maps to speed [0.7, 1.3]
+        head_speed = 0.7 + (axes.arousal + 1.0) * 0.3
         head_duration = int(DEFAULT_TRANSITION_MS / head_speed)
 
         # Get LED configuration from existing mapper

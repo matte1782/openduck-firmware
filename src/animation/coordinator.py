@@ -465,6 +465,9 @@ class AnimationCoordinator:
             layer: Layer that finished
             animation_name: Animation that completed
         """
+        # FIX H-002: Capture callback for invocation outside lock
+        callback_to_fire = None
+
         with self._lock:
             if layer not in self._layers:
                 return
@@ -479,12 +482,9 @@ class AnimationCoordinator:
                 _logger.info("Animation '%s' completed on layer '%s'",
                              animation_name, layer)
 
-                # Fire callback
+                # Capture callback for invocation outside lock
                 if self._on_animation_complete:
-                    try:
-                        self._on_animation_complete(animation_name)
-                    except Exception as e:
-                        _logger.error("Animation complete callback error: %s", e)
+                    callback_to_fire = self._on_animation_complete
 
             # Resume paused layers (in reverse priority order)
             paused_to_resume = [
@@ -496,6 +496,13 @@ class AnimationCoordinator:
                 self._paused_layers.remove(name)
                 self._layers[name].active = True
                 _logger.debug("Resumed layer '%s'", name)
+
+        # FIX H-002: Fire callback OUTSIDE the lock to prevent deadlock
+        if callback_to_fire:
+            try:
+                callback_to_fire(animation_name)
+            except Exception as e:
+                _logger.error("Animation complete callback error: %s", e)
 
     def stop_animation(self, layer: str) -> bool:
         """
@@ -747,6 +754,9 @@ class AnimationCoordinator:
         Returns:
             True if animation completed, False if timeout
         """
+        # FIX H-003: Document blocking behavior
+        # NOTE: This method uses blocking time.sleep() and should NOT be
+        # called from async contexts. Use wait_for_completion_async() instead.
         timeout_s = timeout_ms / 1000.0 if timeout_ms else None
         start = time.monotonic()
 
@@ -754,7 +764,35 @@ class AnimationCoordinator:
             elapsed = time.monotonic() - start
             if timeout_s and elapsed >= timeout_s:
                 return False
-            time.sleep(0.01)  # 10ms poll
+            time.sleep(0.01)  # 10ms poll (blocking)
+
+        return True
+
+    async def wait_for_completion_async(
+        self,
+        timeout_ms: Optional[int] = None
+    ) -> bool:
+        """
+        Async version: Wait for current triggered animation to complete.
+
+        Use this in async contexts to avoid blocking the event loop.
+
+        Args:
+            timeout_ms: Maximum wait time in milliseconds (None = indefinite)
+
+        Returns:
+            True if animation completed, False if timeout
+        """
+        import asyncio
+
+        timeout_s = timeout_ms / 1000.0 if timeout_ms else None
+        start = time.monotonic()
+
+        while self.is_animating():
+            elapsed = time.monotonic() - start
+            if timeout_s and elapsed >= timeout_s:
+                return False
+            await asyncio.sleep(0.01)  # Non-blocking 10ms poll
 
         return True
 
@@ -851,22 +889,10 @@ class AnimationCoordinator:
                     self._is_blending = False
                     self._blend_progress = 0.0
 
-            # Check if triggered layer animation has completed
-            # (This is a simplified check - real implementation would
-            # integrate with head controller callbacks)
-            for layer in self._layers.values():
-                if (layer.active and
-                    layer.priority == AnimationPriority.TRIGGERED and
-                    layer.current_animation and
-                    self._head is not None):
-                    # Check if head is still moving
-                    try:
-                        state = self._head.get_state()
-                        if hasattr(state, 'is_moving') and not state.is_moving:
-                            # Animation likely complete
-                            pass  # Real detection would be callback-based
-                    except Exception:
-                        pass
+            # FIX M-004: Removed dead code block
+            # TODO: Day 13+ - Add head controller callback integration for
+            # automatic animation completion detection. Current implementation
+            # relies on explicit stop_animation() calls or timeout.
 
     def stop(self) -> None:
         """Stop the coordinator loop gracefully."""

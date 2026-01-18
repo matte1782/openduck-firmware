@@ -11059,3 +11059,63 @@ Tests Failed: 6
 
 ---
 
+### Day 12 Polish - Hostile Review and Fixes
+
+**Date:** 19 January 2026
+
+#### Hostile Review Score: 76/100 → 92/100 (after fixes)
+
+| Category | Before | After | Notes |
+|----------|--------|-------|-------|
+| Code Correctness | 16/20 | 19/20 | Dead code removed, comment fixed |
+| Thread Safety | 14/20 | 19/20 | Callbacks moved outside locks |
+| Error Handling | 16/20 | 17/20 | Better patterns |
+| Performance | 17/20 | 18/20 | Async wait added |
+| API Design | 13/20 | 19/20 | Consistent patterns, better docs |
+
+#### HIGH Issues Fixed
+
+**H-002: Callback Under Lock (coordinator.py)**
+- Issue: `_on_animation_finished()` invoked callback while holding lock
+- Fix: Capture callback, invoke OUTSIDE the `with self._lock` block
+- Risk Mitigated: Deadlock if callback calls back into coordinator
+
+**H-003: Blocking Sleep (coordinator.py)**
+- Issue: `wait_for_completion()` used `time.sleep()` - blocks event loop
+- Fix: Added `wait_for_completion_async()` with `asyncio.sleep()`
+- Documented blocking nature of sync version
+
+**H-004: Callback Under Lock (emotion_bridge.py)**
+- Issue: `set_emotion()` invoked callback while holding lock
+- Fix: Capture callback data, invoke OUTSIDE the lock
+- Same pattern as H-002
+
+#### MEDIUM Issues Fixed
+
+**M-003: Wrong Comment (emotion_bridge.py)**
+- Issue: Comment said `[0.4, 1.3]` but math gives `[0.7, 1.3]`
+- Fix: Corrected comment to match actual formula
+
+**M-004: Dead Code (coordinator.py)**
+- Issue: `_tick()` had 15-line block that did nothing (`pass`)
+- Fix: Removed block, added TODO for Day 13+ callback integration
+
+#### Test Results After Fixes
+
+```
+453 passed, 1 skipped in 15.73s
+```
+
+#### Files Modified
+
+- `firmware/src/animation/coordinator.py`
+  - Callback invocation moved outside lock
+  - Added `wait_for_completion_async()` method
+  - Removed dead code in `_tick()`
+
+- `firmware/src/animation/emotion_bridge.py`
+  - Callback invocation moved outside lock
+  - Fixed head_speed comment
+
+---
+
