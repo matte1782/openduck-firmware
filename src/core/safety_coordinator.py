@@ -39,9 +39,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
-from safety.emergency_stop import EmergencyStop, SafetyState
-from safety.watchdog import ServoWatchdog
-from safety.current_limiter import CurrentLimiter, StallCondition
+from src.safety.emergency_stop import EmergencyStop, SafetyState
+from src.safety.watchdog import ServoWatchdog
+from src.safety.current_limiter import CurrentLimiter, StallCondition
 
 _logger = logging.getLogger(__name__)
 

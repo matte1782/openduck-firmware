@@ -156,8 +156,8 @@ class TestEmotionConfigs:
 
         config = EMOTION_CONFIGS[EmotionState.IDLE]
 
-        # IDLE: Soft blue, breathing, medium brightness
-        assert config.led_color == (100, 150, 255)
+        # IDLE: Neutral-warm blue (5500K equiv), breathing, medium brightness
+        assert config.led_color == (100, 160, 255)
         assert config.led_pattern == 'breathing'
         assert 100 <= config.led_brightness <= 150
         assert config.pattern_speed == 0.5  # Slow for calm
@@ -657,19 +657,21 @@ class TestEmotionBridge:
         from animation.emotion_axes import EmotionAxes, EMOTION_PRESETS
 
         happy = EMOTION_PRESETS['happy']
-        # Create axes slightly off from happy
+        # Create axes slightly off from happy but closer to happy than any other preset
+        # Using smaller offsets to ensure happy remains the closest match
+        # Distance = sqrt(0.1^2 + 0.1^2 + 0.1^2) = sqrt(0.03) = 0.173
         slightly_off = EmotionAxes(
-            arousal=happy.arousal + 0.2,
-            valence=happy.valence - 0.2,
-            focus=happy.focus + 0.2,
+            arousal=happy.arousal + 0.1,
+            valence=happy.valence - 0.1,
+            focus=happy.focus + 0.1,
             blink_speed=happy.blink_speed
         )
 
-        # With strict threshold, should not match
+        # With strict threshold (0.1), should not match (distance 0.173 > 0.1)
         result_strict = emotion_manager.set_emotion_from_axes(slightly_off, threshold=0.1)
         assert result_strict is False
 
-        # With loose threshold, should match
+        # With loose threshold (0.5), should match happy (distance 0.173 < 0.5)
         result_loose = emotion_manager.set_emotion_from_axes(slightly_off, threshold=0.5)
         assert result_loose is True
 

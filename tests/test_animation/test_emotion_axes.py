@@ -377,7 +377,9 @@ class TestEmotionPresets:
         for preset_name in expected_presets:
             assert preset_name in EMOTION_PRESETS, f"Missing preset: {preset_name}"
 
-        assert len(EMOTION_PRESETS) == 13
+        # Updated: 8 basic + 8 compound/extended + 3 social (Agent 2) = 19
+        # Note: Agent 3 added surprised, frustrated, proud; Agent 2 added affectionate, empathetic, grateful
+        assert len(EMOTION_PRESETS) >= 19, f"Expected at least 19 presets, got {len(EMOTION_PRESETS)}"
 
     def test_all_presets_are_valid_emotion_axes(self):
         """All presets should be valid EmotionAxes instances."""

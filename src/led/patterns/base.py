@@ -59,6 +59,19 @@ class PatternConfig:
         if self.blend_frames < 1:
             raise ValueError(f"blend_frames must be >= 1, got {self.blend_frames}")
 
+    def __repr__(self) -> str:
+        """Return string representation for debugging.
+
+        MEDIUM Issue #7: Added __repr__ for debugging support.
+
+        Returns:
+            Human-readable string with all configuration values
+        """
+        return (
+            f"PatternConfig(speed={self.speed:.2f}, brightness={self.brightness:.2f}, "
+            f"reverse={self.reverse}, blend_frames={self.blend_frames})"
+        )
+
 
 @dataclass
 class FrameMetrics:

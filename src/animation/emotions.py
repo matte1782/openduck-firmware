@@ -24,7 +24,12 @@ class EmotionState(Enum):
 
     Each state maps to specific LED patterns and colors
     for clear, readable expression.
+
+    Categories:
+    - Primary (8): Core emotional states
+    - Social (4): Connection-building emotions (Agent 2, Week 02)
     """
+    # === Primary Emotions (8) ===
     IDLE = "idle"           # Default resting state
     HAPPY = "happy"         # Joy, success, greeting
     CURIOUS = "curious"     # Interest, investigation
@@ -33,6 +38,14 @@ class EmotionState(Enum):
     SLEEPY = "sleepy"       # Low energy, shutting down
     EXCITED = "excited"     # High energy, anticipation
     THINKING = "thinking"   # Processing, computing
+
+    # === Social Emotions (4) - Connection-Building ===
+    # Added by Agent 2 (Social Emotion Implementation Specialist)
+    # Research: Anki Cozmo/Vector, color psychology, social HRI
+    PLAYFUL = "playful"         # Mischievous, bouncy, invites play
+    AFFECTIONATE = "affectionate"  # Warm, nurturing, bonding
+    EMPATHETIC = "empathetic"   # Mirroring, supportive, understanding
+    GRATEFUL = "grateful"       # Appreciative, thankful, acknowledging
 
 
 # === Emotion Configuration ===
@@ -80,77 +93,188 @@ class EmotionConfig:
 
 
 # === Emotion Configurations Dictionary ===
+#
+# Psychology-Grounded Configurations v2.0 - Agent 1 Primary Emotion Refinement
+# Research basis: PMC color psychology, cardiac psychophysiology, Disney 12 Principles
+#
+# Color Temperature Reference (research-validated):
+#   - 2200K = Candlelight (very warm orange) - maximum excitement
+#   - 2700K = Warm incandescent - sleep, relaxation
+#   - 2800K = Warm white - happiness, joy
+#   - 5500K = Daylight (neutral) - calm awareness, curiosity
+#   - 7000K = Cool daylight - cognitive processing
+#   - 9000K = Very cool blue - sadness, withdrawal
+#
+# BPM Reference (cardiac psychophysiology):
+#   - 6 BPM = Near-sleep breathing rate
+#   - 7.5 BPM = Low energy, sad
+#   - 12 BPM = Relaxed breathing (Apple Watch validated)
+#   - 24 BPM = Thoughtful, curious
+#   - 33 BPM = Deliberate processing
+#   - 50 BPM = Elevated heartbeat (joy)
+#   - 100 BPM = High excitement
+#   - 171 BPM = Fight-or-flight
+#
+# Sources:
+#   - Color psychology: PMC4383146, Frontiers fpsyg.2022.515215
+#   - Cardiac arousal: PMC8237168, PMC5761738
+#   - Disney timing: "The Illusion of Life" Johnston & Thomas 1981
 
-# NOTE: Only using patterns implemented Saturday: breathing, pulse, spin
-# 'sparkle' and 'fade' deferred to Day 9 implementation
 EMOTION_CONFIGS: Dict[EmotionState, EmotionConfig] = {
+    # IDLE: Alive readiness with micro life signs
+    # Color: Neutral-warm blue (5500K) - approachable calm
+    # Timing: 12 BPM breathing - validated by Apple Watch research
+    # Disney: Slow In/Out, Secondary Action, Appeal
     EmotionState.IDLE: EmotionConfig(
-        led_color=(100, 150, 255),       # Soft blue - calm, approachable
-        led_pattern='breathing',          # Slow breathing - alive but at rest
-        led_brightness=128,               # Medium brightness - not demanding attention
-        pattern_speed=0.5,                # Slow - peaceful
-        transition_ms=800,                # Gradual - settling down
+        led_color=(100, 160, 255),         # Neutral-warm blue (5500K equiv)
+        led_pattern='breathing',           # Gaussian breathing with micro-movements
+        led_brightness=128,                # Medium - alive but not demanding
+        pattern_speed=0.5,                 # 5.0s cycle = 12 BPM
+        transition_ms=800,                 # Gradual settling
     ),
 
+    # HAPPY: Genuine warmth with anticipation sparkles
+    # Color: Soft warm yellow (2800K) - joy, sunshine
+    # Timing: 50 BPM pulse - elevated heartbeat during joy
+    # Disney: Anticipation, Exaggeration, Secondary Action
     EmotionState.HAPPY: EmotionConfig(
-        led_color=(255, 220, 50),         # Warm yellow - joy, warmth
-        led_pattern='pulse',              # Quick pulse - energetic (sparkle deferred)
-        led_brightness=200,               # Bright - open, expressive
-        pattern_speed=1.2,                # Moderate-fast - energetic
-        transition_ms=400,                # Quick - eager to express
+        led_color=(255, 210, 80),          # Soft warm yellow (2800K equiv)
+        led_pattern='pulse',               # Quick pulse with anticipation dip
+        led_brightness=200,                # Bright - open expression
+        pattern_speed=1.5,                 # 1.2s cycle = 50 BPM
+        transition_ms=400,                 # Quick - eager to express
     ),
 
+    # CURIOUS: Active searching with variable scan speed
+    # Color: Pure teal-cyan (5500K) - intellectual focus
+    # Timing: 24 BPM scanning - thoughtful, not rushed
+    # Disney: Follow Through, Timing, Staging
     EmotionState.CURIOUS: EmotionConfig(
-        led_color=(150, 255, 150),        # Soft green - inquisitive
-        led_pattern='breathing',          # Subtle breathing - attentive
-        led_brightness=160,               # Medium-high - engaged
-        pattern_speed=0.8,                # Moderate - thoughtful
-        transition_ms=500,                # Medium - considering
+        led_color=(30, 240, 200),          # Pure teal-cyan (5500K equiv)
+        led_pattern='breathing',           # Scanning rotation with variable speed
+        led_brightness=160,                # Medium-high - engaged
+        pattern_speed=0.7,                 # 2.5s cycle = 24 BPM
+        transition_ms=500,                 # Medium - considering
     ),
 
+    # ALERT: Urgent attention without anxiety
+    # Color: Saturated red-orange (1800K) - urgency, warning
+    # Timing: 171 BPM pulse - fight-or-flight response
+    # Disney: Timing, Anticipation, Appeal
     EmotionState.ALERT: EmotionConfig(
-        led_color=(255, 100, 100),        # Warm red - attention, warning
-        led_pattern='pulse',              # Quick pulse - urgent
-        led_brightness=220,               # High - demanding attention
-        pattern_speed=1.8,                # Fast - urgent
-        transition_ms=200,                # Very fast - immediate response
+        led_color=(255, 70, 40),           # Saturated red-orange (1800K)
+        led_pattern='pulse',               # Fast pulse with ramp-up
+        led_brightness=220,                # High - demanding attention
+        pattern_speed=2.0,                 # 0.35s cycle = 171 BPM
+        transition_ms=200,                 # Very fast - immediate
     ),
 
+    # SAD: Authentic melancholy with droop gradient
+    # Color: Deep desaturated blue (9000K) - withdrawal, introspection
+    # Timing: 7.5 BPM breathing - low energy, reluctant
+    # Disney: Appeal (vulnerability), Secondary Action, Exaggeration
     EmotionState.SAD: EmotionConfig(
-        led_color=(100, 100, 200),        # Muted blue - melancholy
-        led_pattern='breathing',          # Slow breathing - drooping (fade deferred)
-        led_brightness=80,                # Dim - withdrawn
-        pattern_speed=0.3,                # Very slow - low energy
-        transition_ms=1000,               # Slow - reluctant
+        led_color=(70, 90, 160),           # Deep desaturated blue (9000K)
+        led_pattern='breathing',           # Slow breathing with quadratic droop
+        led_brightness=80,                 # Dim - withdrawn
+        pattern_speed=0.25,                # 8.0s cycle = 7.5 BPM
+        transition_ms=1000,                # Slow - reluctant
     ),
 
+    # SLEEPY: Peaceful drowsiness fighting sleep
+    # Color: Soft lavender (2700K) - melatonin-associated warmth
+    # Timing: 6 BPM breathing - near-sleep rate
+    # Disney: Straight Ahead, Secondary Action, Timing
     EmotionState.SLEEPY: EmotionConfig(
-        led_color=(150, 130, 200),        # Lavender - drowsy
-        led_pattern='breathing',          # Slow breathing - drifting off (fade deferred)
-        led_brightness=60,                # Very dim - shutting down
-        pattern_speed=0.25,               # Very slow - nearly asleep
-        transition_ms=1500,               # Very slow - gradual
+        led_color=(140, 110, 190),         # Soft lavender (2700K equiv)
+        led_pattern='breathing',           # Ultra-slow with irregular blinks
+        led_brightness=60,                 # Very dim - shutting down
+        pattern_speed=0.2,                 # 10.0s cycle = 6 BPM
+        transition_ms=1500,                # Very slow - gradual
     ),
 
+    # EXCITED: Barely contained energy with rainbow bursts
+    # Color: Bright orange (2200K) - maximum warmth, enthusiasm
+    # Timing: 100 BPM spin - maximum sustainable excitement
+    # Disney: Squash & Stretch, Exaggeration, Secondary Action
     EmotionState.EXCITED: EmotionConfig(
-        led_color=(255, 150, 50),         # Orange - energy, enthusiasm
-        led_pattern='spin',               # Fast spin - bouncing (sparkle deferred)
-        led_brightness=230,               # Very bright - maximum expression
-        pattern_speed=2.0,                # Very fast - can't contain it
-        transition_ms=300,                # Quick - bursting forth
+        led_color=(255, 140, 40),          # Bright orange (2200K equiv)
+        led_pattern='spin',                # Fast spin with sparkle bursts
+        led_brightness=230,                # Very bright - maximum expression
+        pattern_speed=2.5,                 # 0.6s cycle = 100 BPM
+        transition_ms=300,                 # Quick - bursting forth
     ),
 
+    # THINKING: Visible processing with deliberate rhythm
+    # Color: Cool blue-white (7000K) - cognitive enhancement
+    # Timing: 33 BPM rotation - deliberate, mechanical
+    # Disney: Staging, Timing, Anticipation
     EmotionState.THINKING: EmotionConfig(
-        led_color=(200, 200, 255),        # White-blue - processing
-        led_pattern='spin',               # Rotating - working
-        led_brightness=150,               # Medium - focused
-        pattern_speed=1.0,                # Steady - consistent work
-        transition_ms=400,                # Medium - shifting focus
+        led_color=(170, 190, 255),         # Cool blue-white (7000K equiv)
+        led_pattern='spin',                # Step-wise rotation
+        led_brightness=150,                # Medium - focused
+        pattern_speed=0.9,                 # 1.8s cycle = 33 BPM
+        transition_ms=400,                 # Medium - shifting focus
+    ),
+
+    # === Social Emotions (4) - Connection-Building ===
+    # Added by Agent 2 (Social Emotion Implementation Specialist)
+    # Research: Anki Cozmo/Vector emotion engine, color psychology, social HRI
+
+    EmotionState.PLAYFUL: EmotionConfig(
+        led_color=(255, 180, 100),        # Warm orange - energetic, fun
+        led_pattern='playful',            # Bouncy asymmetric with sparkles
+        led_brightness=200,               # Bright - inviting engagement
+        pattern_speed=1.4,                # Fast - mischievous energy
+        transition_ms=300,                # Quick - eager to play
+        # Psychology: Play signal reduces social tension, invites interaction
+        # Disney: EXAGGERATION, SECONDARY ACTION (sparkles), variable TIMING
+    ),
+
+    EmotionState.AFFECTIONATE: EmotionConfig(
+        led_color=(255, 150, 180),        # Warm pink-coral - nurturing
+        led_pattern='affectionate',       # Heartbeat pulse at 72 BPM
+        led_brightness=180,               # Warm - not overwhelming
+        pattern_speed=1.0,                # Natural heartbeat rhythm
+        transition_ms=600,                # Gradual - warmth builds slowly
+        # Psychology: Triggers oxytocin bonding response
+        # Color: Pink = unconditional love, nurturing, warmth
+        # Disney: TIMING (heartbeat), SLOW IN/SLOW OUT, APPEAL
+    ),
+
+    EmotionState.EMPATHETIC: EmotionConfig(
+        led_color=(180, 180, 220),        # Soft lavender-blue - receptive
+        led_pattern='empathetic',         # Mirroring breathing rhythm
+        led_brightness=140,               # Soft - non-threatening
+        pattern_speed=0.8,                # Slow - calming presence
+        transition_ms=500,                # Medium - natural shift
+        # Psychology: Mirroring triggers connection through perceived understanding
+        # Disney: TIMING, FOLLOW THROUGH, APPEAL
+    ),
+
+    EmotionState.GRATEFUL: EmotionConfig(
+        led_color=(255, 200, 100),        # Golden amber - appreciation
+        led_pattern='grateful',           # Brightness surge (like a bow)
+        led_brightness=190,               # Bright - expressing appreciation
+        pattern_speed=1.0,                # Natural timing
+        transition_ms=400,                # Medium - acknowledgment pace
+        # Psychology: Communicates appreciation and acknowledgment
+        # Color: Gold = value, warmth, gratitude
+        # Disney: ANTICIPATION, FOLLOW THROUGH, EXAGGERATION
     ),
 }
 
 
 # === Valid Transitions Matrix ===
+#
+# Defines valid emotional state transitions based on psychological naturalism.
+# Updated to include social emotions (Agent 2, Week 02).
+#
+# Design Philosophy:
+# - All emotions can transition to/from IDLE (universal reset)
+# - Social emotions flow naturally from positive states
+# - Empathetic can be reached from any state (always receptive)
+# - Grateful typically follows positive interactions
 
 VALID_TRANSITIONS: Dict[EmotionState, Set[EmotionState]] = {
     EmotionState.IDLE: {
@@ -161,6 +285,11 @@ VALID_TRANSITIONS: Dict[EmotionState, Set[EmotionState]] = {
         EmotionState.SLEEPY,
         EmotionState.EXCITED,
         EmotionState.THINKING,
+        # Social emotions - IDLE can transition to any
+        EmotionState.PLAYFUL,       # Starting to play
+        EmotionState.AFFECTIONATE,  # Feeling warmth
+        EmotionState.EMPATHETIC,    # Being supportive
+        EmotionState.GRATEFUL,      # Expressing thanks
     },
 
     EmotionState.HAPPY: {
@@ -169,6 +298,10 @@ VALID_TRANSITIONS: Dict[EmotionState, Set[EmotionState]] = {
         EmotionState.EXCITED,
         EmotionState.ALERT,      # Can be startled while happy
         EmotionState.THINKING,   # Pondering something
+        # Social emotions - HAPPY flows naturally to positive social states
+        EmotionState.PLAYFUL,       # Joy leads to play
+        EmotionState.AFFECTIONATE,  # Happiness deepens to affection
+        EmotionState.GRATEFUL,      # Happy about something = grateful
     },
 
     EmotionState.CURIOUS: {
@@ -177,6 +310,9 @@ VALID_TRANSITIONS: Dict[EmotionState, Set[EmotionState]] = {
         EmotionState.ALERT,      # Found something concerning
         EmotionState.THINKING,   # Processing what was found
         EmotionState.SAD,        # Disappointment
+        # Social emotions
+        EmotionState.PLAYFUL,       # Curious play
+        EmotionState.EMPATHETIC,    # Curious about feelings
     },
 
     EmotionState.ALERT: {
@@ -185,6 +321,9 @@ VALID_TRANSITIONS: Dict[EmotionState, Set[EmotionState]] = {
         EmotionState.HAPPY,      # Resolved positively
         EmotionState.SAD,        # Resolved negatively
         EmotionState.THINKING,   # Processing the situation
+        # Social emotions
+        EmotionState.EMPATHETIC,    # Alert to emotional needs
+        EmotionState.GRATEFUL,      # Grateful for help
     },
 
     EmotionState.SAD: {
@@ -193,12 +332,18 @@ VALID_TRANSITIONS: Dict[EmotionState, Set[EmotionState]] = {
         EmotionState.ALERT,      # Something demands attention
         EmotionState.CURIOUS,    # Distracted by something
         EmotionState.SLEEPY,     # Giving up, rest
+        # Social emotions
+        EmotionState.EMPATHETIC,    # Sad but supportive
+        EmotionState.GRATEFUL,      # Grateful for comfort
+        EmotionState.AFFECTIONATE,  # Seeking connection
     },
 
     EmotionState.SLEEPY: {
         EmotionState.IDLE,       # Waking up gently
         EmotionState.ALERT,      # Startled awake (always allowed)
         EmotionState.CURIOUS,    # Something interesting
+        # Social emotions
+        EmotionState.AFFECTIONATE,  # Sleepy cuddles
     },
 
     EmotionState.EXCITED: {
@@ -207,6 +352,10 @@ VALID_TRANSITIONS: Dict[EmotionState, Set[EmotionState]] = {
         EmotionState.ALERT,      # Excitement becomes concern
         EmotionState.CURIOUS,    # Excited about something specific
         EmotionState.THINKING,   # Processing the excitement
+        # Social emotions - excited leads to playful engagement
+        EmotionState.PLAYFUL,       # Excitement -> play
+        EmotionState.AFFECTIONATE,  # Excited love
+        EmotionState.GRATEFUL,      # Excited gratitude
     },
 
     EmotionState.THINKING: {
@@ -216,6 +365,57 @@ VALID_TRANSITIONS: Dict[EmotionState, Set[EmotionState]] = {
         EmotionState.ALERT,      # Realized something urgent
         EmotionState.CURIOUS,    # Need more information
         EmotionState.EXCITED,    # Eureka!
+        # Social emotions
+        EmotionState.EMPATHETIC,    # Thinking about others
+        EmotionState.GRATEFUL,      # Realized something to be thankful for
+    },
+
+    # === Social Emotion Transitions ===
+    # Added by Agent 2 (Social Emotion Implementation Specialist)
+
+    EmotionState.PLAYFUL: {
+        EmotionState.IDLE,       # Play session ends
+        EmotionState.HAPPY,      # Play leads to joy
+        EmotionState.EXCITED,    # Play escalates
+        EmotionState.CURIOUS,    # Playful investigation
+        EmotionState.ALERT,      # Play interrupted
+        # Social emotion flows
+        EmotionState.AFFECTIONATE,  # Playful -> affection (deepening bond)
+        EmotionState.GRATEFUL,      # Grateful for play partner
+    },
+
+    EmotionState.AFFECTIONATE: {
+        EmotionState.IDLE,       # Returning to neutral
+        EmotionState.HAPPY,      # Warm happiness
+        EmotionState.SLEEPY,     # Comfortable drowsiness
+        EmotionState.SAD,        # Missing someone
+        EmotionState.ALERT,      # Something demands attention (always reachable)
+        # Social emotion flows
+        EmotionState.PLAYFUL,       # Affectionate play
+        EmotionState.EMPATHETIC,    # Deep understanding
+        EmotionState.GRATEFUL,      # Grateful for connection
+    },
+
+    EmotionState.EMPATHETIC: {
+        EmotionState.IDLE,       # Returning to neutral
+        EmotionState.HAPPY,      # Shared joy
+        EmotionState.SAD,        # Shared sadness
+        EmotionState.CURIOUS,    # Wanting to understand more
+        EmotionState.THINKING,   # Processing feelings
+        EmotionState.ALERT,      # Something demands attention (always reachable)
+        # Social emotion flows
+        EmotionState.AFFECTIONATE,  # Empathy -> affection
+        EmotionState.GRATEFUL,      # Grateful to help
+    },
+
+    EmotionState.GRATEFUL: {
+        EmotionState.IDLE,       # Gratitude expressed, settling
+        EmotionState.HAPPY,      # Gratitude -> happiness
+        EmotionState.CURIOUS,    # Looking for more to appreciate
+        EmotionState.ALERT,      # Something demands attention (always reachable)
+        # Social emotion flows
+        EmotionState.AFFECTIONATE,  # Deep gratitude -> affection
+        EmotionState.PLAYFUL,       # Joyful gratitude -> playfulness
     },
 }
 

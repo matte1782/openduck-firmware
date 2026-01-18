@@ -309,11 +309,13 @@ class EmotionAxes:
 # enabling backward compatibility with existing emotion system and providing
 # convenient starting points for common emotions.
 #
-# 13 presets: 8 basic emotions + 5 compound emotions
+# 19 presets: 8 basic + 8 compound/extended + 4 social emotions (from original 13)
+# Updated: Week 02 - Added social emotions (Agent 2), compound emotions (Agent 3)
 #
 # Design Philosophy (Pixar/Russell-inspired):
 #   - Basic emotions cover the core arousal-valence quadrants
 #   - Compound emotions enable nuanced states discrete enums can't capture
+#   - Social emotions build human-robot connection bonds
 #   - Focus and blink_speed add personality depth beyond 2D circumplex
 
 EMOTION_PRESETS: Dict[str, 'EmotionAxes'] = {
@@ -393,11 +395,49 @@ EMOTION_PRESETS: Dict[str, 'EmotionAxes'] = {
         blink_speed=1.3,  # Elevated blinks (uncertainty)
     ),
 
+    # === Social Emotions (4) - Connection-Building ===
+    # Added by Agent 2 (Social Emotion Implementation Specialist)
+    # Research: Anki Cozmo/Vector, color psychology, social HRI
+    #
+    # These emotions are specifically designed to create human-robot bonds.
+
     "playful": EmotionAxes(
-        arousal=0.5,      # Moderate-high energy
-        valence=0.6,      # Positive affect
-        focus=0.4,        # Attention bouncing around
-        blink_speed=1.4,  # Slightly fast (mischievous)
+        arousal=0.6,      # Elevated energy (ready to play!)
+        valence=0.7,      # Strongly positive (fun, joy)
+        focus=0.4,        # Attention bouncing around (mischievous)
+        blink_speed=1.5,  # Fast blinking (can't sit still)
+        # Psychology: Play signal reduces social tension, invites interaction
+        # Anki: Cozmo's playful states used variable timing for unpredictability
+    ),
+
+    "affectionate": EmotionAxes(
+        arousal=0.3,      # Moderate energy (warm, not overwhelming)
+        valence=0.9,      # Maximum positive (love, warmth)
+        focus=0.7,        # Focused on loved one (eye contact)
+        blink_speed=0.8,  # Slow, soft blinks (adoring gaze)
+        # Psychology: Triggers oxytocin bonding response
+        # Color: Pink = unconditional love, nurturing (Ceyise Studios research)
+        # Heartbeat at 72 BPM = comfortable human rhythm
+    ),
+
+    "empathetic": EmotionAxes(
+        arousal=-0.2,     # Low energy (receptive, not imposing)
+        valence=-0.3,     # Slightly negative (sharing pain/concern)
+        focus=0.8,        # High focus (attentive listening)
+        blink_speed=0.6,  # Slow blinks (calm, present)
+        # Psychology: Mirroring triggers connection through perceived understanding
+        # Social robotics: Empathy is key for long-term engagement
+        # Breathing rhythm matches calm human breath (12 BPM)
+    ),
+
+    "grateful": EmotionAxes(
+        arousal=0.2,      # Mild energy (appreciative, calm)
+        valence=0.8,      # Strongly positive (thankfulness)
+        focus=0.6,        # Moderate focus (acknowledging)
+        blink_speed=0.9,  # Normal-slow blinks (sincere)
+        # Psychology: Communicates appreciation and acknowledgment
+        # Color: Gold = value, warmth, gratitude
+        # Brightness surge pattern = "thank you" bow
     ),
 
     "determined": EmotionAxes(
@@ -412,5 +452,32 @@ EMOTION_PRESETS: Dict[str, 'EmotionAxes'] = {
         valence=0.4,      # Positive affect (pleasant reverie)
         focus=0.1,        # Very low focus (imagination wandering)
         blink_speed=0.4,  # Slow blinks (half-lidded)
+    ),
+
+    # === Additional Compound Emotions (3) - Week 02 Agent 3 ===
+    # Psychology-grounded compound emotions for enhanced expressiveness
+
+    "surprised": EmotionAxes(
+        arousal=0.8,      # High energy (startle response)
+        valence=0.0,      # Neutral (could be positive or negative)
+        focus=1.0,        # Maximum focus (orienting response)
+        blink_speed=0.3,  # Frozen momentarily (wide eyes)
+        # Psychology: Ekman universal emotion, pupil dilation ~200ms peak
+    ),
+
+    "frustrated": EmotionAxes(
+        arousal=0.5,      # Building tension (not explosive yet)
+        valence=-0.4,     # Negative (goal blocked)
+        focus=0.8,        # High focus on obstacle
+        blink_speed=1.4,  # Accelerating rhythm
+        # Psychology: Frustration-Aggression Hypothesis (Dollard 1939)
+    ),
+
+    "proud": EmotionAxes(
+        arousal=0.4,      # Moderate energy (confident, not manic)
+        valence=0.6,      # Positive (achievement recognition)
+        focus=0.7,        # Focused but open
+        blink_speed=0.9,  # Steady, slower (confidence)
+        # Psychology: Ekman expansion emotion, self-evaluative
     ),
 }

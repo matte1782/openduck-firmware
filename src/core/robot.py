@@ -43,7 +43,7 @@ from .robot_state import (
     HardwareError,
 )
 from .safety_coordinator import SafetyCoordinator
-from kinematics.arm_kinematics import ArmKinematics
+from src.kinematics.arm_kinematics import ArmKinematics
 
 _logger = logging.getLogger(__name__)
 

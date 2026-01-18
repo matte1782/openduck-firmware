@@ -100,71 +100,107 @@ class EmotionConfig:
     description: str                         # For display
 
 
-# Emotion configurations from PIXAR_EMOTION_LED_PATTERNS.md
+# Psychology-Grounded Emotion Configurations v2.0
+# Research: PMC color psychology, cardiac psychophysiology, Disney 12 Principles
+#
+# Color Temperature Reference:
+#   2200K = Candlelight (very warm) -> Excited
+#   2700K = Warm incandescent -> Sleepy, relaxation
+#   2800K = Warm white -> Happy, joy
+#   5500K = Daylight neutral -> Idle, Curious
+#   7000K = Cool daylight -> Thinking, cognitive
+#   9000K = Very cool blue -> Sad, withdrawal
+#
+# BPM Reference (cardiac psychophysiology):
+#   6 BPM = Near-sleep breathing
+#   7.5 BPM = Low energy (sad)
+#   12 BPM = Relaxed breathing (Apple Watch validated)
+#   24 BPM = Thoughtful scanning
+#   33 BPM = Deliberate processing
+#   50 BPM = Elevated heartbeat (joy)
+#   100 BPM = High excitement
+#   171 BPM = Fight-or-flight
+
 EMOTION_CONFIGS: Dict[Emotion, EmotionConfig] = {
+    # IDLE: Alive readiness with micro life signs
+    # Disney: Slow In/Out, Secondary Action, Appeal
     Emotion.IDLE: EmotionConfig(
-        primary_color=(100, 150, 255),       # Soft sky blue
-        secondary_color=(80, 120, 230),      # Deeper blue
+        primary_color=(100, 160, 255),       # Neutral-warm blue (5500K equiv)
+        secondary_color=(80, 140, 240),      # Deeper for life signs
         brightness_min=0.30,
         brightness_max=0.70,
         cycle_duration=5.0,                  # 12 BPM breathing
-        description="Calm, aware, breathing",
+        description="Calm, alive, micro-movements",
     ),
+    # HAPPY: Genuine warmth with anticipation sparkles
+    # Disney: Anticipation, Exaggeration, Secondary Action
     Emotion.HAPPY: EmotionConfig(
-        primary_color=(255, 200, 50),        # Warm golden yellow
-        secondary_color=(255, 150, 30),      # Deeper orange
+        primary_color=(255, 210, 80),        # Soft warm yellow (2800K equiv)
+        secondary_color=(255, 170, 50),      # Warmer orange undertone
         brightness_min=0.60,
         brightness_max=1.00,
-        cycle_duration=1.5,                  # Elevated heartbeat
-        description="Joyful, warm, sparkling",
+        cycle_duration=1.2,                  # 50 BPM elevated heartbeat
+        description="Joyful, warm, anticipation sparkles",
     ),
+    # CURIOUS: Active searching with variable scan speed
+    # Disney: Follow Through, Timing, Staging
     Emotion.CURIOUS: EmotionConfig(
-        primary_color=(50, 255, 180),        # Teal cyan
-        secondary_color=(30, 200, 150),      # Deeper teal
+        primary_color=(30, 240, 200),        # Pure teal-cyan (5500K equiv)
+        secondary_color=(20, 200, 170),      # Deeper teal for focus point
         brightness_min=0.50,
         brightness_max=0.90,
-        cycle_duration=2.0,                  # Scanning rotation
-        description="Attentive, searching, focused",
+        cycle_duration=2.5,                  # 24 BPM thoughtful scanning
+        description="Attentive, searching, variable focus",
     ),
+    # ALERT: Urgent attention without anxiety
+    # Disney: Timing, Anticipation, Appeal
     Emotion.ALERT: EmotionConfig(
-        primary_color=(255, 80, 50),         # Warm red-orange
-        secondary_color=(255, 40, 20),       # Deeper red
+        primary_color=(255, 70, 40),         # Saturated red-orange (1800K)
+        secondary_color=(255, 50, 25),       # Deep warning red
         brightness_min=0.70,
         brightness_max=1.00,
-        cycle_duration=0.4,                  # Fast pulse (150 BPM)
-        description="Sharp, urgent, warning",
+        cycle_duration=0.35,                 # 171 BPM fight-or-flight
+        description="Sharp, urgent, ramp-up warning",
     ),
+    # SAD: Authentic melancholy with droop gradient
+    # Disney: Appeal (vulnerability), Secondary Action, Exaggeration
     Emotion.SAD: EmotionConfig(
-        primary_color=(80, 100, 180),        # Muted blue
-        secondary_color=(60, 80, 150),       # Deeper muted blue
+        primary_color=(70, 90, 160),         # Deep desaturated blue (9000K)
+        secondary_color=(50, 70, 140),       # Even more muted
         brightness_min=0.15,
         brightness_max=0.40,
-        cycle_duration=6.0,                  # Slow, low energy
-        description="Withdrawn, dim, drooping",
+        cycle_duration=8.0,                  # 7.5 BPM reluctant breathing
+        description="Withdrawn, drooping, occasional sighs",
     ),
+    # SLEEPY: Peaceful drowsiness fighting sleep
+    # Disney: Straight Ahead, Secondary Action, Timing
     Emotion.SLEEPY: EmotionConfig(
-        primary_color=(150, 120, 200),       # Soft lavender
-        secondary_color=(120, 90, 170),      # Deeper purple
+        primary_color=(140, 110, 190),       # Soft lavender (2700K equiv)
+        secondary_color=(110, 85, 160),      # Deeper purple undertone
         brightness_min=0.05,
         brightness_max=0.35,
-        cycle_duration=8.0,                  # Very slow breathing
-        description="Drowsy, fading, peaceful",
+        cycle_duration=10.0,                 # 6 BPM near-sleep breathing
+        description="Drowsy, fighting sleep, irregular blinks",
     ),
+    # EXCITED: Barely contained energy with rainbow bursts
+    # Disney: Squash & Stretch, Exaggeration, Secondary Action
     Emotion.EXCITED: EmotionConfig(
-        primary_color=(255, 150, 50),        # Bright orange
-        secondary_color=(255, 100, 30),      # Deeper orange
+        primary_color=(255, 140, 40),        # Bright orange (2200K equiv)
+        secondary_color=(255, 90, 25),       # Deep orange for comet tail
         brightness_min=0.80,
         brightness_max=1.00,
-        cycle_duration=0.8,                  # Fast spinning
-        description="Energetic, sparkling, dynamic",
+        cycle_duration=0.6,                  # 100 BPM maximum excitement
+        description="Energetic, rainbow bursts, barely contained",
     ),
+    # THINKING: Visible processing with deliberate rhythm
+    # Disney: Staging, Timing, Anticipation
     Emotion.THINKING: EmotionConfig(
-        primary_color=(180, 180, 255),       # Soft blue-white
-        secondary_color=(150, 150, 230),     # Deeper blue-white
+        primary_color=(170, 190, 255),       # Cool blue-white (7000K equiv)
+        secondary_color=(140, 160, 240),     # Cooler processing blue
         brightness_min=0.40,
         brightness_max=0.75,
-        cycle_duration=1.5,                  # Steady rotation
-        description="Processing, contemplating, pulsing",
+        cycle_duration=1.8,                  # 33 BPM deliberate rhythm
+        description="Processing, step-wise, visible computation",
     ),
 }
 
@@ -412,21 +448,44 @@ class EmotionRenderer:
 
     def _render_idle(self, t: float) -> Tuple[List, List]:
         """
-        IDLE: Calm breathing with spatial variation.
+        IDLE: Calm breathing with micro life signs.
 
-        Disney Principle: SLOW IN AND SLOW OUT
-        The brightness changes gradually accelerate from rest.
+        Psychology: 12 BPM breathing (Apple Watch validated)
+        Color: Neutral-warm blue (5500K) - approachable calm
+
+        Disney Principles Applied:
+        - SLOW IN AND SLOW OUT: Gaussian breathing curve
+        - SECONDARY ACTION: Micro-saccades (attention micro-shifts)
+        - APPEAL: Robot feels alive, not just "on standby"
         """
         config = EMOTION_CONFIGS[Emotion.IDLE]
         r_base, g_base, b_base = config.primary_color
 
         # 5-second breathing cycle (Gaussian-like: exp(sin(x)))
+        # 12 BPM = relaxed breathing rate (cardiac psychophysiology research)
         cycle_phase = (t % config.cycle_duration) / config.cycle_duration
         breath_raw = math.exp(math.sin(2 * math.pi * cycle_phase - math.pi / 2))
         breath = (breath_raw - 0.368) / 2.35  # Normalize to 0-1
 
-        # Apply ease_in_out for extra smoothness
+        # Apply ease_in_out for extra smoothness (Disney: Slow In/Slow Out)
         breath_eased = ease_in_out(breath)
+
+        # v2.0 Enhancement: Breath irregularity (+-5% variation)
+        # Makes breathing feel organic, not mechanical
+        breath_variation = math.sin(t * 0.7) * 0.05
+
+        # v2.0 Enhancement: Micro-saccades (attention micro-shifts)
+        # Every 3-7 seconds, 1-2 LEDs briefly brighten (50ms) simulating attention
+        # This is what makes the robot feel "alive" vs just breathing
+        saccade_active = False
+        saccade_led = -1
+        saccade_intensity = 0.0
+        # Pseudo-random saccade timing based on time (deterministic for consistency)
+        saccade_cycle = int(t * 10) % 50  # ~1 per 5 seconds at 50fps
+        if saccade_cycle < 3:  # 60ms window
+            saccade_led = int(t * 7) % self.num_leds  # Deterministic position
+            saccade_intensity = 0.15 * (1 - saccade_cycle / 3)  # Fade out
+            saccade_active = True
 
         left_pixels = []
         right_pixels = []
@@ -436,10 +495,19 @@ class EmotionRenderer:
             spatial_offset = math.sin(i * math.pi / 8) * 0.05
             spatial_mod = spatial_offset * math.sin(t * 0.5)
 
-            # Brightness: 30% to 70%
+            # Brightness: 30% to 70% with breath variation
             brightness = config.brightness_min + (config.brightness_max - config.brightness_min) * breath_eased
-            brightness += spatial_mod
+            brightness += spatial_mod + breath_variation
             brightness = max(config.brightness_min, min(config.brightness_max, brightness))
+
+            # v2.0: Apply micro-saccade boost
+            if saccade_active and i == saccade_led:
+                brightness = min(config.brightness_max, brightness + saccade_intensity)
+
+            # v2.0: Slight top brightness (5%) - suggests "awake" orientation
+            vertical_pos = math.sin(i * math.pi / self.num_leds)
+            top_boost = 0.05 * max(0, vertical_pos)  # Top LEDs slightly brighter
+            brightness = min(config.brightness_max, brightness + top_boost)
 
             r = int(r_base * brightness)
             g = int(g_base * brightness)
@@ -452,28 +520,56 @@ class EmotionRenderer:
 
     def _render_happy(self, t: float) -> Tuple[List, List]:
         """
-        HAPPY: Warm pulsing with random sparkles.
+        HAPPY: Warm pulsing with anticipation dip and clustered sparkles.
 
-        Disney Principles: EXAGGERATION + SECONDARY ACTION
-        Colors more saturated, sparkles add life.
+        Psychology: 50 BPM pulse - elevated heartbeat during joy
+        Color: Soft warm yellow (2800K) - joy, sunshine, warmth
+
+        Disney Principles Applied:
+        - ANTICIPATION: Slight 5% brightness dip before pulse peak
+        - EXAGGERATION: Saturated warm colors, visible sparkles
+        - SECONDARY ACTION: Clustered sparkles that tend to group together
         """
         config = EMOTION_CONFIGS[Emotion.HAPPY]
         r_base, g_base, b_base = config.primary_color
 
-        # 1.5s pulse (ease-out: quick rise, slow settle)
+        # 1.2s pulse (50 BPM - elevated heartbeat during joy)
         pulse_phase = (t % config.cycle_duration) / config.cycle_duration
-        if pulse_phase < 0.3:
-            pulse = pulse_phase / 0.3  # Quick rise
+
+        # v2.0 Enhancement: Anticipation dip before pulse peak
+        # Disney principle: Brief 5% brightness dip at phase 0.25 before peak at 0.3
+        if pulse_phase < 0.25:
+            # Rising with slight dip at end (anticipation)
+            pulse = pulse_phase / 0.25 * 0.95  # Rise to 95%
+        elif pulse_phase < 0.3:
+            # Anticipation recovery to full
+            anticipation_progress = (pulse_phase - 0.25) / 0.05
+            pulse = 0.95 + 0.05 * anticipation_progress  # 95% -> 100%
         else:
-            pulse = (1 - pulse_phase) / 0.7  # Slow settle
+            # Slow settle (ease-out)
+            pulse = (1 - pulse_phase) / 0.7
         pulse = max(0, min(1, pulse))
 
         # Brightness: 60% to 100%
         base_brightness = config.brightness_min + (config.brightness_max - config.brightness_min) * pulse
 
-        # Manage sparkles (3-5 random LEDs twinkling)
-        if random.random() < 0.15:  # ~7.5 sparkles/second at 50fps
-            pos = random.randint(0, self.num_leds - 1)
+        # v2.0 Enhancement: Color warmth wave
+        # Brightness peaks are slightly warmer (more orange) than troughs
+        warmth_shift = int(pulse * 30)  # 0-30 shift toward orange at peak
+        r_dynamic = min(255, r_base + warmth_shift)
+        g_dynamic = max(0, g_base - int(warmth_shift * 0.3))
+
+        # v2.0 Enhancement: Clustered sparkles (60% chance to appear near recent sparkle)
+        if random.random() < 0.12:  # ~6 sparkles/second at 50fps
+            if self.happy_sparkles and random.random() < 0.6:
+                # Cluster near recent sparkle
+                base_pos = self.happy_sparkles[-1]['pos']
+                offset = random.choice([-1, 0, 1])
+                pos = (base_pos + offset) % self.num_leds
+            else:
+                # Random position
+                pos = random.randint(0, self.num_leds - 1)
+
             if pos not in [s['pos'] for s in self.happy_sparkles]:
                 self.happy_sparkles.append({'pos': pos, 'timer': 0.2})
 
@@ -496,15 +592,15 @@ class EmotionRenderer:
             sparkle_match = next((s for s in self.happy_sparkles if s['pos'] == i), None)
 
             if sparkle_match:
-                # Sparkle: bright white-yellow
+                # Sparkle: bright white-yellow with warmth
                 intensity = sparkle_match['timer'] / 0.2  # Fade out
-                r = int(255 * intensity + r_base * (1 - intensity) * base_brightness)
-                g = int(255 * intensity + g_base * (1 - intensity) * base_brightness)
-                b = int(200 * intensity + b_base * (1 - intensity) * base_brightness)
+                r = int(255 * intensity + r_dynamic * (1 - intensity) * base_brightness)
+                g = int(255 * intensity + g_dynamic * (1 - intensity) * base_brightness)
+                b = int(180 * intensity + b_base * (1 - intensity) * base_brightness)
             else:
-                # Base warm yellow
-                r = int(r_base * base_brightness)
-                g = int(g_base * base_brightness)
+                # Base warm yellow with dynamic warmth
+                r = int(r_dynamic * base_brightness)
+                g = int(g_dynamic * base_brightness)
                 b = int(b_base * base_brightness)
 
             r = min(255, r)
@@ -620,35 +716,66 @@ class EmotionRenderer:
 
     def _render_sad(self, t: float) -> Tuple[List, List]:
         """
-        SAD: Slow breathing with top-heavy dimming (drooping).
+        SAD: Slow breathing with quadratic droop gradient and occasional sighs.
 
-        Disney Principle: APPEAL through VULNERABILITY
-        Dim, withdrawn appearance evokes empathy.
+        Psychology: 7.5 BPM breathing - low energy, reluctant
+        Color: Deep desaturated blue (9000K) - withdrawal, introspection
+
+        Disney Principles Applied:
+        - APPEAL through VULNERABILITY: Dim, withdrawn appearance evokes empathy
+        - SECONDARY ACTION: Occasional "sighs" (brief brightness rise then fall)
+        - EXAGGERATION: Pronounced quadratic droop (top much dimmer than bottom)
         """
         config = EMOTION_CONFIGS[Emotion.SAD]
         r_base, g_base, b_base = config.primary_color
 
-        # Slow breathing (6 seconds)
+        # 8-second breathing (7.5 BPM - low energy, reluctant)
         breath_phase = (t % config.cycle_duration) / config.cycle_duration
         breath = 0.5 + 0.5 * math.sin(2 * math.pi * breath_phase - math.pi / 2)
 
-        # Ease-in: slow to rise, quick to fall (reluctant)
+        # Ease-in: slow to rise, quick to fall (reluctant to move)
         breath_eased = breath * breath
+
+        # v2.0 Enhancement: Occasional "sighs" (every 10-15 seconds)
+        # Brief brightness rise then fall, simulating emotional release
+        sigh_cycle = t % 12.0  # ~12 second sigh cycle
+        sigh_active = False
+        sigh_intensity = 0.0
+        if sigh_cycle < 0.8:  # 800ms sigh duration
+            sigh_phase = sigh_cycle / 0.8
+            if sigh_phase < 0.3:
+                sigh_intensity = sigh_phase / 0.3 * 0.15  # Rise 15%
+            else:
+                sigh_intensity = 0.15 * (1 - (sigh_phase - 0.3) / 0.7)  # Fall back
+            sigh_active = True
 
         left_pixels = []
         right_pixels = []
 
         for i in range(self.num_leds):
-            # Droop effect: top LEDs dimmer (LED 8 at top, 0 at bottom)
-            vertical_position = math.sin(i * math.pi / 8)  # -1 to 1
-            droop_factor = 0.7 + 0.3 * (1 - vertical_position) / 2  # Top=0.7, Bottom=1.0
+            # v2.0 Enhancement: Quadratic droop gradient (more pronounced)
+            # LED 0 at bottom (bright), LED 8 at top (dim)
+            # Using quadratic instead of linear for more emotional impact
+            vertical_pos = math.sin(i * math.pi / self.num_leds)  # -1 to 1
+            normalized_pos = (vertical_pos + 1) / 2  # 0 to 1 (0=bottom, 1=top)
+            # Quadratic: top LEDs dim faster (0.6 at top vs 1.0 at bottom)
+            droop_factor = 1.0 - (normalized_pos ** 2) * 0.4
 
-            # Very low brightness range
+            # v2.0 Enhancement: Color desaturation gradient
+            # Top LEDs more desaturated (grayer) than bottom
+            desat_factor = 1.0 - normalized_pos * 0.2  # Top 20% more desaturated
+            r_adjusted = int(r_base + (128 - r_base) * (1 - desat_factor))
+            g_adjusted = int(g_base + (128 - g_base) * (1 - desat_factor))
+            b_adjusted = int(b_base + (128 - b_base) * (1 - desat_factor) * 0.5)
+
+            # Very low brightness range with droop and sigh
             brightness = (config.brightness_min + (config.brightness_max - config.brightness_min) * breath_eased) * droop_factor
+            if sigh_active:
+                brightness = min(config.brightness_max, brightness + sigh_intensity)
 
-            r = int(r_base * brightness)
-            g = int(g_base * brightness)
-            b = int(b_base * brightness)
+            r = int(r_adjusted * brightness)
+            g = int(g_adjusted * brightness)
+            b = int(b_adjusted * brightness)
 
             left_pixels.append((r, g, b))
             right_pixels.append((r, g, b))
@@ -657,44 +784,76 @@ class EmotionRenderer:
 
     def _render_sleepy(self, t: float) -> Tuple[List, List]:
         """
-        SLEEPY: Ultra-slow breathing with periodic long blinks.
+        SLEEPY: Ultra-slow breathing with irregular blinks and fighting-sleep behavior.
 
-        Disney Principles: TIMING + STRAIGHT AHEAD ACTION
-        Slow timing = peaceful. Random blinks = organic.
+        Psychology: 6 BPM breathing - near-sleep rate
+        Color: Soft lavender (2700K) - melatonin-associated warmth
+
+        Disney Principles Applied:
+        - STRAIGHT AHEAD ACTION: Beta-distributed blink intervals (organic randomness)
+        - SECONDARY ACTION: Double-blinks (20% chance), startle recovery
+        - TIMING: Very slow = peaceful, approaching sleep
         """
         config = EMOTION_CONFIGS[Emotion.SLEEPY]
         r_base, g_base, b_base = config.primary_color
 
-        # Check for blink
+        # v2.0 Enhancement: Beta-distributed blink intervals (right-skewed)
+        # Most blinks come quickly, occasional long gaps (fighting sleep)
         if not self.sleepy_in_blink:
             self.sleepy_next_blink -= FRAME_TIME
             if self.sleepy_next_blink <= 0:
                 self.sleepy_in_blink = True
-                self.sleepy_blink_timer = 0.4  # 400ms blink
+                # v2.0: Longer blinks when sleepy (500-700ms)
+                self.sleepy_blink_timer = 0.5 + random.random() * 0.2
+                # v2.0: 20% chance of double-blink (stored for later)
+                self._sleepy_double_blink = random.random() < 0.2
         else:
             self.sleepy_blink_timer -= FRAME_TIME
             if self.sleepy_blink_timer <= 0:
-                self.sleepy_in_blink = False
-                self.sleepy_next_blink = random.uniform(4, 6)
+                if hasattr(self, '_sleepy_double_blink') and self._sleepy_double_blink:
+                    # Double blink: quick re-blink after 150ms
+                    self._sleepy_double_blink = False
+                    self.sleepy_blink_timer = 0.3  # Shorter second blink
+                    # Don't reset sleepy_in_blink, stay in blink mode
+                else:
+                    self.sleepy_in_blink = False
+                    # v2.0: Beta-like distribution (3-9 seconds, mode ~4s)
+                    # Using simple approximation without betavariate
+                    r1, r2 = random.random(), random.random()
+                    self.sleepy_next_blink = 3.0 + (r1 * r2) * 6.0  # Skewed toward 3-5s
 
-        # Very slow breathing (8 seconds)
+        # 10-second breathing (6 BPM - near-sleep rate)
         breath_phase = (t % config.cycle_duration) / config.cycle_duration
         breath = 0.5 + 0.5 * math.sin(2 * math.pi * breath_phase - math.pi / 2)
         breath_eased = ease_in_out(breath)
 
-        # Blink modulation
+        # v2.0 Enhancement: Gradual overall dimming over time
+        # Simulates getting sleepier (resets every 60 seconds)
+        drowsiness = min(1.0, (t % 60.0) / 60.0)  # 0 to 1 over 60 seconds
+        drowsiness_factor = 1.0 - drowsiness * 0.2  # Dims by up to 20%
+
+        # Blink modulation with startle recovery
         if self.sleepy_in_blink:
-            blink_phase = 1 - (self.sleepy_blink_timer / 0.4)
-            if blink_phase < 0.5:
-                blink_dim = 1 - (blink_phase * 2)  # Closing
+            blink_duration = 0.5  # Approximate duration
+            blink_phase = 1 - (self.sleepy_blink_timer / blink_duration)
+            blink_phase = max(0, min(1, blink_phase))
+
+            if blink_phase < 0.4:
+                blink_dim = 1 - (blink_phase / 0.4)  # Closing (40% of blink)
+            elif blink_phase < 0.6:
+                blink_dim = 0.0  # Fully closed (20% of blink)
             else:
-                blink_dim = (blink_phase - 0.5) * 2  # Opening
-            blink_dim = blink_dim * blink_dim  # Reluctant to open
+                # v2.0: Opening with startle recovery (brief brightness spike)
+                open_phase = (blink_phase - 0.6) / 0.4
+                blink_dim = open_phase ** 2  # Reluctant to open (quadratic)
+                # Startle: brief 10% brightness spike when eyes start opening
+                if open_phase < 0.3:
+                    blink_dim = min(1.0, blink_dim + 0.1 * (1 - open_phase / 0.3))
         else:
             blink_dim = 1.0
 
-        # Final brightness
-        brightness = (config.brightness_min + (config.brightness_max - config.brightness_min) * breath_eased) * blink_dim
+        # Final brightness with drowsiness
+        brightness = (config.brightness_min + (config.brightness_max - config.brightness_min) * breath_eased) * blink_dim * drowsiness_factor
 
         left_pixels = []
         right_pixels = []
@@ -711,25 +870,37 @@ class EmotionRenderer:
 
     def _render_excited(self, t: float) -> Tuple[List, List]:
         """
-        EXCITED: Fast spinning comet with rainbow sparkle explosions.
+        EXCITED: Fast spinning comet with rainbow sparkle bursts.
 
-        Disney Principles: EXAGGERATION + SQUASH AND STRETCH
-        Everything amplified to maximum.
+        Psychology: 100 BPM spin - maximum sustainable excitement
+        Color: Bright orange (2200K) - maximum warmth, enthusiasm
+
+        Disney Principles Applied:
+        - SQUASH AND STRETCH: Comet head compression, longer 6-LED tail
+        - EXAGGERATION: Maximum saturation, rainbow explosions
+        - SECONDARY ACTION: Sparkle bursts of 3-5 instead of individual
         """
         config = EMOTION_CONFIGS[Emotion.EXCITED]
         r_base, g_base, b_base = config.primary_color
 
-        # Fast spin (0.8s rotation)
+        # 0.6s rotation (100 BPM - maximum sustainable excitement)
         spin_phase = (t % config.cycle_duration) / config.cycle_duration
         comet_pos = spin_phase * self.num_leds
 
-        # Add new sparkles frequently
-        if random.random() < 0.25:  # ~12 sparkles/second at 50fps
-            self.excited_sparkles.append({
-                'pos': random.randint(0, self.num_leds - 1),
-                'timer': 0.15,
-                'hue': random.random()  # Rainbow!
-            })
+        # v2.0 Enhancement: Sparkle BURSTS instead of individual
+        # ~4 bursts/second, each burst has 3-5 sparkles
+        if random.random() < 0.08:  # ~4 bursts/second at 50fps
+            burst_center = random.randint(0, self.num_leds - 1)
+            burst_size = random.randint(3, 5)
+            for _ in range(burst_size):
+                pos = (burst_center + random.randint(-2, 2)) % self.num_leds
+                # Staggered timers for cascade effect
+                timer = 0.15 + random.random() * 0.1
+                self.excited_sparkles.append({
+                    'pos': pos,
+                    'timer': timer,
+                    'hue': random.random()  # Rainbow!
+                })
 
         # Update sparkles
         new_sparkles = []
@@ -759,23 +930,35 @@ class EmotionRenderer:
                 g = int(g * 255)
                 b = int(b * 255)
             else:
-                # Spinning comet
+                # v2.0 Enhancement: Comet with 6-LED tail (longer, more dramatic)
                 distance = min(
                     abs(i - comet_pos),
                     self.num_leds - abs(i - comet_pos)
                 )
 
-                # Comet with 4-LED tail
-                if distance < 4:
-                    comet_intensity = 1 - (distance / 4)
+                # v2.0: Longer 6-LED tail, brighter +10% head
+                if distance < 6:
+                    comet_intensity = 1 - (distance / 6)
                     comet_intensity = comet_intensity ** 0.5
+                    # Head is extra bright (+10%)
+                    if distance < 1:
+                        comet_intensity = min(1.0, comet_intensity * 1.1)
                     brightness = config.brightness_min + (config.brightness_max - config.brightness_min) * comet_intensity
                 else:
                     brightness = config.brightness_min
+                    comet_intensity = 0
 
-                r = int(r_base * brightness)
-                g = int(g_base * brightness * (1 - 0.3 * (comet_intensity if distance < 4 else 0)))
-                b = int(b_base * brightness)
+                # v2.0: Color temperature shift - head shifts from orange to yellow-white
+                if comet_intensity > 0.5:
+                    # Shift toward white at head
+                    head_shift = (comet_intensity - 0.5) * 2  # 0-1 for head portion
+                    r = int(min(255, r_base + (255 - r_base) * head_shift * 0.3) * brightness)
+                    g = int(min(255, g_base + (255 - g_base) * head_shift * 0.5) * brightness)
+                    b = int(min(255, b_base + (255 - b_base) * head_shift * 0.2) * brightness)
+                else:
+                    r = int(r_base * brightness)
+                    g = int(g_base * brightness * (1 - 0.3 * comet_intensity))
+                    b = int(b_base * brightness)
 
             left_pixels.append((min(255, r), min(255, g), min(255, b)))
 
@@ -797,16 +980,25 @@ class EmotionRenderer:
                 g_r = int(g_r * 255)
                 b_r = int(b_r * 255)
             else:
-                if distance_r < 4:
-                    comet_intensity_r = 1 - (distance_r / 4)
+                if distance_r < 6:
+                    comet_intensity_r = 1 - (distance_r / 6)
                     comet_intensity_r = comet_intensity_r ** 0.5
+                    if distance_r < 1:
+                        comet_intensity_r = min(1.0, comet_intensity_r * 1.1)
                     brightness_r = config.brightness_min + (config.brightness_max - config.brightness_min) * comet_intensity_r
                 else:
                     brightness_r = config.brightness_min
+                    comet_intensity_r = 0
 
-                r_r = int(r_base * brightness_r)
-                g_r = int(g_base * brightness_r * (1 - 0.3 * (comet_intensity_r if distance_r < 4 else 0)))
-                b_r = int(b_base * brightness_r)
+                if comet_intensity_r > 0.5:
+                    head_shift_r = (comet_intensity_r - 0.5) * 2
+                    r_r = int(min(255, r_base + (255 - r_base) * head_shift_r * 0.3) * brightness_r)
+                    g_r = int(min(255, g_base + (255 - g_base) * head_shift_r * 0.5) * brightness_r)
+                    b_r = int(min(255, b_base + (255 - b_base) * head_shift_r * 0.2) * brightness_r)
+                else:
+                    r_r = int(r_base * brightness_r)
+                    g_r = int(g_base * brightness_r * (1 - 0.3 * comet_intensity_r))
+                    b_r = int(b_base * brightness_r)
 
             right_pixels.append((min(255, r_r), min(255, g_r), min(255, b_r)))
 
@@ -814,54 +1006,88 @@ class EmotionRenderer:
 
     def _render_thinking(self, t: float) -> Tuple[List, List]:
         """
-        THINKING: Rotating segment with periodic brightness pulses.
+        THINKING: Step-wise rotation with processing flickers and breakthrough pulses.
 
-        Disney Principles: TIMING (mechanical) + SECONDARY ACTION
-        Linear timing suggests logical processing.
+        Psychology: 33 BPM rotation - deliberate, mechanical
+        Color: Cool blue-white (7000K) - cognitive enhancement
+
+        Disney Principles Applied:
+        - STAGING: Clear processing visible (step-wise, not smooth)
+        - TIMING: Mechanical = logical processing
+        - ANTICIPATION: Flicker before each step, breakthrough pulse
         """
         config = EMOTION_CONFIGS[Emotion.THINKING]
         r_base, g_base, b_base = config.primary_color
 
-        # Steady rotation (1.5s cycle)
-        rotation_phase = (t % config.cycle_duration) / config.cycle_duration
-        segment_center = rotation_phase * self.num_leds
+        # v2.0 Enhancement: Step-wise rotation (8 discrete positions)
+        # Instead of smooth, move in deliberate steps (like a clock hand ticking)
+        steps = 8  # 8 discrete positions around the ring
+        continuous_phase = (t % config.cycle_duration) / config.cycle_duration
+        step_index = int(continuous_phase * steps)
+        step_progress = (continuous_phase * steps) % 1.0  # 0-1 within current step
 
-        # Periodic pulse every 0.6 seconds
-        pulse_phase = (t % 0.6) / 0.6
+        # Calculate segment center using step position
+        segment_center = (step_index / steps) * self.num_leds
+
+        # v2.0: Processing flicker at step transitions
+        # Brief flicker when about to move to next step (anticipation)
+        flicker_intensity = 1.0
+        if step_progress > 0.85:  # Last 15% of each step
+            flicker_phase = (step_progress - 0.85) / 0.15  # 0-1
+            flicker_intensity = 0.7 + 0.3 * math.sin(flicker_phase * math.pi * 4)  # Quick oscillation
+
+        # v2.0: Breakthrough pulse every 4-6 seconds (insight moment)
+        breakthrough_cycle = t % 5.0  # 5 second cycle
+        breakthrough_active = False
+        breakthrough_intensity = 0.0
+        if breakthrough_cycle < 0.3:  # 300ms breakthrough
+            breakthrough_phase = breakthrough_cycle / 0.3
+            if breakthrough_phase < 0.2:
+                breakthrough_intensity = breakthrough_phase / 0.2 * 0.3  # Rise 30%
+            else:
+                breakthrough_intensity = 0.3 * (1 - (breakthrough_phase - 0.2) / 0.8)  # Decay
+            breakthrough_active = True
+
+        # Periodic subtle pulse (computational rhythm)
+        pulse_phase = (t % 0.9) / 0.9  # Slightly slower: 0.9s instead of 0.6s
         pulse = 0.5 + 0.5 * math.cos(2 * math.pi * pulse_phase)
 
         left_pixels = []
         right_pixels = []
 
         for i in range(self.num_leds):
-            # Segment: 6-8 LEDs bright
+            # Segment: bright focus area
             distance = min(
                 abs(i - segment_center),
                 self.num_leds - abs(i - segment_center)
             )
 
-            if distance < 3:
+            if distance < 2:
                 segment_brightness = 1.0
             elif distance < 4:
-                segment_brightness = 1 - (distance - 3)
+                segment_brightness = 1 - (distance - 2) / 2
             else:
-                segment_brightness = 0.3
+                segment_brightness = 0.25
 
-            # Combine segment + pulse
-            brightness = config.brightness_min + (config.brightness_max - config.brightness_min) * (segment_brightness * 0.7 + pulse * 0.3)
+            # Combine: segment + pulse + flicker + breakthrough
+            base_brightness = config.brightness_min + (config.brightness_max - config.brightness_min) * (segment_brightness * 0.7 + pulse * 0.3)
+            brightness = base_brightness * flicker_intensity
+            if breakthrough_active:
+                brightness = min(config.brightness_max, brightness + breakthrough_intensity)
 
-            # Color: whiter at segment, bluer in background
+            # v2.0: Cooler blue-white for cognitive feel (7000K)
+            # Segment is whiter, background is cooler blue
             if distance < 4:
-                r = int(220 * brightness)
-                g = int(220 * brightness)
-                b = int(255 * brightness)
+                r = int(r_base * brightness)
+                g = int(g_base * brightness)
+                b = int(min(255, b_base * 1.1) * brightness)  # Slightly more blue
             else:
-                r = int(150 * brightness)
-                g = int(150 * brightness)
-                b = int(230 * brightness)
+                r = int(r_base * 0.8 * brightness)
+                g = int(g_base * 0.8 * brightness)
+                b = int(b_base * brightness)
 
-            left_pixels.append((r, g, b))
-            right_pixels.append((r, g, b))
+            left_pixels.append((min(255, r), min(255, g), min(255, b)))
+            right_pixels.append((min(255, r), min(255, g), min(255, b)))
 
         return left_pixels, right_pixels
 

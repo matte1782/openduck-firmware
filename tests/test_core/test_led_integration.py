@@ -69,9 +69,12 @@ def MockColor(r, g, b):
 
 @pytest.fixture
 def mock_hardware():
-    """Mock rpi_ws281x hardware."""
-    with patch('core.led_manager.PixelStrip', MockPixelStrip), \
-         patch('core.led_manager.Color', MockColor):
+    """Mock rpi_ws281x hardware.
+
+    The PixelStrip and Color are imported inside LEDController.initialize_hardware()
+    directly from rpi_ws281x, so we must patch at the rpi_ws281x module level.
+    """
+    with patch.dict('sys.modules', {'rpi_ws281x': Mock(PixelStrip=MockPixelStrip, Color=MockColor)}):
         yield
 
 
