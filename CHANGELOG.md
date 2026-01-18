@@ -11008,3 +11008,54 @@ Tests Failed: 6
 
 ---
 
+### Day 11 Polish - Hostile Review and Fixes
+
+**Date:** 19 January 2026
+
+#### Hostile Review Score: 82/100 → PASS (after fixes)
+
+| Category | Before | After | Notes |
+|----------|--------|-------|-------|
+| Code Correctness | 17/20 | 19/20 | Division guard added |
+| Thread Safety | 14/20 | 18/20 | Event-based waiting, proper locking |
+| Error Handling | 17/20 | 17/20 | Already good |
+| Performance | 17/20 | 19/20 | No more busy-wait |
+| API Design | 17/20 | 17/20 | Already good |
+
+#### HIGH Issues Fixed
+
+**H-001: Thread Orphaning (head_controller.py)**
+- Issue: Animation threads not properly signaled on cancel
+- Fix: Set `_animation_complete` event in `_cancel_animation_internal()`
+
+**H-004: Double-Checked Locking (color_utils.py)**
+- Issue: Race condition in `_ensure_lut_initialized()`
+- Fix: Acquire lock before checking `_HSV_LUT_INITIALIZED` flag
+
+**H-005: Busy-Wait Polling (head_controller.py)**
+- Issue: `wait_for_completion()` used CPU-burning polling loop
+- Fix: Added `_animation_complete` Event with proper wait/signal
+
+**H-006: Division by Zero (color_utils.py)**
+- Issue: `ColorTransition.get_color()` could divide by zero
+- Fix: Added guard `if self._config.duration_ms <= 0: return self._end`
+
+#### Test Results After Fixes
+
+```
+596 passed, 1 skipped in 33.23s
+```
+
+#### Files Modified
+
+- `firmware/src/control/head_controller.py`
+  - Added `_animation_complete` Event for proper signaling
+  - Replaced busy-wait with `Event.wait()`
+  - Signal completion on both finish and cancel
+
+- `firmware/src/led/color_utils.py`
+  - Fixed double-checked locking in `_ensure_lut_initialized()`
+  - Added division by zero guard in `ColorTransition.get_color()`
+
+---
+

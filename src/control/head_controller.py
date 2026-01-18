@@ -300,6 +300,8 @@ class HeadController:
         # Animation thread
         self._animation_thread: Optional[threading.Thread] = None
         self._stop_animation = threading.Event()
+        self._animation_complete = threading.Event()  # FIX H-005: Signal for wait_for_completion
+        self._animation_complete.set()  # Initially complete (not animating)
 
         # Callback
         self._on_movement_complete: Optional[Callable[[HeadMovementType], None]] = None
@@ -804,25 +806,15 @@ class HeadController:
         Returns:
             True if movement completed, False if timeout
         """
+        # FIX H-005: Use Event-based waiting instead of busy-wait polling
         if timeout_ms is not None:
             timeout_s = timeout_ms / 1000.0
         else:
             timeout_s = None
 
-        start_time = time.monotonic()
-
-        while True:
-            with self._lock:
-                if not self._is_moving:
-                    return True
-
-            if timeout_s is not None:
-                elapsed = time.monotonic() - start_time
-                if elapsed >= timeout_s:
-                    return False
-
-            # Sleep briefly to avoid busy-waiting
-            time.sleep(FRAME_TIME_S)
+        # Wait on the completion event (set when animation finishes)
+        completed = self._animation_complete.wait(timeout=timeout_s)
+        return completed
 
     def set_on_movement_complete(
         self,
@@ -1259,6 +1251,7 @@ class HeadController:
 
         # Clear stop flag and start animation thread
         self._stop_animation.clear()
+        self._animation_complete.clear()  # FIX H-005: Mark animation as in-progress
         self._animation_start_time = time.monotonic()
 
         self._animation_thread = threading.Thread(
@@ -1359,6 +1352,9 @@ class HeadController:
             # Fire callback if set
             callback = self._on_movement_complete
 
+        # FIX H-005: Signal animation complete for wait_for_completion()
+        self._animation_complete.set()
+
         # Call callback outside lock to prevent deadlocks
         if callback is not None and movement_type is not None:
             try:
@@ -1378,6 +1374,9 @@ class HeadController:
         self._target_pan = None
         self._target_tilt = None
         self._keyframes.clear()
+
+        # FIX H-001/H-005: Signal completion on cancel too
+        self._animation_complete.set()
 
     # =========================================================================
     # PRIVATE METHODS - Servo Control

@@ -111,9 +111,15 @@ def _init_hsv_lut() -> None:
 
 
 def _ensure_lut_initialized() -> None:
-    """Ensure LUT is initialized before use."""
-    if not _HSV_LUT_INITIALIZED:
-        _init_hsv_lut()
+    """Ensure LUT is initialized before use.
+
+    FIX H-004: Properly synchronized double-checked locking pattern.
+    Always acquire lock before checking the flag to avoid race conditions.
+    """
+    global _HSV_LUT_INITIALIZED
+    with _HSV_LUT_LOCK:
+        if not _HSV_LUT_INITIALIZED:
+            _init_hsv_lut()
 
 
 # =============================================================================
@@ -689,6 +695,10 @@ class ColorTransition:
         else:
             current_time = time.monotonic()
             elapsed = (current_time - self._start_time) * 1000  # Convert to ms
+
+        # FIX H-006: Guard against division by zero
+        if self._config.duration_ms <= 0:
+            return self._end  # Instant transition to end color
 
         # Calculate raw progress (0.0 to 1.0)
         raw_progress = elapsed / self._config.duration_ms
