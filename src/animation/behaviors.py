@@ -89,8 +89,14 @@ class IdleBehavior:
     - Breathing/subtle movement (optional, future expansion)
 
     Thread Safety:
-        Designed for single-threaded async operation.
-        External synchronization needed if called from multiple threads.
+        FIX H-NEW-002: Explicitly documented threading model.
+        This class is designed for single-threaded async operation.
+        The async run() method, pause(), resume(), and stop() methods
+        MUST be called from the same event loop / thread.
+
+        AnimationCoordinator should call IdleBehavior methods from its
+        coordination thread only. If multiple threads need access,
+        wrap calls in external synchronization (e.g., asyncio.run_coroutine_threadsafe).
 
     Example:
         >>> from src.animation.behaviors import IdleBehavior

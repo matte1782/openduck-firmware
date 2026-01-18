@@ -502,11 +502,12 @@ class MicroExpressionEngine:
         self._cooldown_timers[expr_type] = now + cooldown_s
 
         # Fire callbacks
+        # FIX H-NEW-003: Log callback errors instead of silent swallow
         for callback in self._callbacks:
             try:
                 callback(expr_type, "started")
-            except Exception:
-                pass  # Don't let callback errors break engine
+            except Exception as e:
+                _logger.debug(f"Callback error (started): {e}")  # Don't break engine
 
         return True
 
@@ -546,11 +547,12 @@ class MicroExpressionEngine:
             expr_type = active.expression.expression_type
 
             # Fire completion callbacks
+            # FIX H-NEW-003: Log callback errors instead of silent swallow
             for callback in self._callbacks:
                 try:
                     callback(expr_type, "completed")
-                except Exception:
-                    pass
+                except Exception as e:
+                    _logger.debug(f"Callback error (completed): {e}")
 
             # Clear active expression
             self._active_expression = None

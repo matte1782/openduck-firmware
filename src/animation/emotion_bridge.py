@@ -436,6 +436,9 @@ class EmotionBridge:
                 f"axes must be EmotionAxes, got {type(axes).__name__}"
             )
 
+        # FIX H-NEW-001: Capture callback data for invocation outside lock
+        callback_data = None
+
         with self._lock:
             _logger.info(f"Expressing emotion axes: {axes}")
 
@@ -467,14 +470,19 @@ class EmotionBridge:
                 except Exception as e:
                     _logger.warning(f"Micro-expression trigger failed: {e}")
 
-            # Fire callback
+            # FIX H-NEW-001: Capture callback for firing outside lock
             if self._on_emotion_change is not None:
-                try:
-                    self._on_emotion_change(axes, expression)
-                except Exception as e:
-                    _logger.warning(f"Emotion change callback error: {e}")
+                callback_data = (self._on_emotion_change, axes, expression)
 
-            return True
+        # FIX H-NEW-001: Fire callback OUTSIDE the lock to prevent deadlock
+        if callback_data:
+            callback, cb_axes, cb_expression = callback_data
+            try:
+                callback(cb_axes, cb_expression)
+            except Exception as e:
+                _logger.warning(f"Emotion change callback error: {e}")
+
+        return True
 
     def express_preset(
         self,

@@ -306,6 +306,9 @@ class HeadController:
         # Callback
         self._on_movement_complete: Optional[Callable[[HeadMovementType], None]] = None
 
+        # FIX H-NEW-004: Thread-safe private RNG instance
+        self._rng = random.Random()
+
         # Initialize servos to center position
         self._move_servos_to(self._current_pan, self._current_tilt)
 
@@ -558,14 +561,14 @@ class HeadController:
 
             # Generate random glance target with natural variation
             # APPEAL principle: Never exactly the same
-            pan_offset = random.uniform(-max_deviation, max_deviation)
+            pan_offset = self._rng.uniform(-max_deviation, max_deviation)  # FIX H-NEW-004
 
             # Add slight bias toward larger movements for appeal
             if abs(pan_offset) < max_deviation * 0.3:
                 pan_offset *= 1.5
 
             # SECONDARY ACTION: Slight tilt accompanying pan
-            tilt_offset = pan_offset * SECONDARY_TILT_RATIO * random.uniform(0.8, 1.2)
+            tilt_offset = pan_offset * SECONDARY_TILT_RATIO * self._rng.uniform(0.8, 1.2)  # FIX H-NEW-004
 
             # Clamp to limits
             glance_pan = self._clamp_pan(self._current_pan + pan_offset)
@@ -1002,7 +1005,7 @@ class HeadController:
         current_tilt = self._current_tilt
 
         # Determine first shake direction (random for variety)
-        first_direction = random.choice([-1, 1])
+        first_direction = self._rng.choice([-1, 1])  # FIX H-NEW-004: Thread-safe
 
         # Keyframe 0: Starting position
         keyframes.append(_Keyframe(
