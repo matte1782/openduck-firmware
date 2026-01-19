@@ -6409,7 +6409,7 @@ This entry logs the hostile review session with:
 
 **Hardware Validation Status:**
 - PCA9685 PWM Controller: ✅ VALIDATED (I2C 0x40)
-- BNO085 IMU: ✅ VALIDATED (I2C 0x4A)
+- BNO085 IMU: ⏳ IN TRANSITO (ETA Day 16 - 21 Gen) - NOT YET VALIDATED
 - LED Ring 1 (Left Eye): ✅ VALIDATED (GPIO 18, 16 pixels)
 - LED Ring 2 (Right Eye): ✅ VALIDATED (GPIO 13, 16 pixels)
 - Dual-ring demo: ✅ WORKING (openduck_eyes_demo.py tested by user)
@@ -11498,7 +11498,7 @@ except ImportError:
 
 ### Hardware Status
 
-- BNO085: ✅ VALIDATED on Pi Zero 2W
+- BNO085: ⏳ IN TRANSITO (ETA Day 16) - NOT YET VALIDATED
 - Servos: ⏳ PENDING (awaiting battery)
 - LED Ring: ⏳ PENDING (awaiting battery)
 - Power: ⏳ PENDING (batteries ordered)

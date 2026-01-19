@@ -45,7 +45,7 @@ Week 02 delivered a comprehensive animation system with Disney-grade motion prin
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| BNO085 IMU | ✅ VALIDATED | Tested on Pi Zero 2W |
+| BNO085 IMU | ⏳ IN TRANSITO | ETA Day 16 (21 Gen) - NOT YET VALIDATED |
 | Servo Movement | ⏳ PENDING | Awaiting battery power |
 | LED Ring | ⏳ PENDING | Awaiting battery power |
 | Power System | ⏳ PENDING | Batteries ordered, ETA Week 03 |
