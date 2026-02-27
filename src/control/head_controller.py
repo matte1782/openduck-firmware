@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
-HeadController - 2-DOF Pan/Tilt Head Control with Disney Animation Principles
+HeadController - 4-DOF Head Control with Disney Animation Principles
 
 Provides smooth, expressive head movements for the OpenDuck Mini V3 robot
 using the 12 Disney Animation Principles for natural, appealing motion.
+
+4-DOF Configuration (V2-Compatible):
+------------------------------------
+- neck_pitch: Base neck up/down movement (PCA9685 ch 10)
+- head_pitch: Head nod forward/back (PCA9685 ch 11)
+- head_yaw: Head rotate left/right (PCA9685 ch 12)
+- head_roll: Head tilt side-to-side (PCA9685 ch 13) - "Pixar secret!"
 
 Disney 12 Principles Applied:
 ---------------------------------------------------------------------------
@@ -14,7 +21,7 @@ Disney 12 Principles Applied:
 5. FOLLOW THROUGH: Movement continues slightly after reaching target
 6. SLOW IN / SLOW OUT: Easing functions for natural acceleration
 7. ARCS: Natural curved motion paths for organic feel
-8. SECONDARY ACTION: Subtle supporting movements (tilt with pan)
+8. SECONDARY ACTION: Subtle supporting movements (roll with yaw)
 9. TIMING: Speed conveys weight and emotion
 10. EXAGGERATION: Push poses for clarity (first shake larger)
 11. SOLID DRAWING: N/A for servo control
@@ -27,7 +34,8 @@ Architecture:
 - Emergency stop always available via atomic flag
 
 Author: Agent 2B - Disney Animation Engineer
-Created: 18 January 2026
+Created: 18 January 2026 (2-DOF version)
+Updated: 19 January 2026 (4-DOF V2-compatible version)
 Quality Standard: Pixar Character TD / Disney Animation Grade
 """
 
@@ -93,78 +101,150 @@ class HeadMovementType(Enum):
 
 @dataclass
 class HeadLimits:
-    """Hardware limits for head servos.
+    """Hardware limits for 4-DOF head servos.
 
-    All angles in degrees. Center position is 0.0 for both axes.
-    Positive pan = right, negative pan = left.
-    Positive tilt = up, negative tilt = down.
+    All angles in degrees. Center position is 0.0 for all axes.
+
+    Coordinate System:
+    - neck_pitch: Positive = neck up, negative = neck down
+    - head_pitch: Positive = look up, negative = nod down
+    - head_yaw: Positive = rotate right, negative = rotate left
+    - head_roll: Positive = tilt right, negative = tilt left
 
     Attributes:
-        pan_min: Minimum pan angle (negative = left)
-        pan_max: Maximum pan angle (positive = right)
-        tilt_min: Minimum tilt angle (negative = down)
-        tilt_max: Maximum tilt angle (positive = up)
-        pan_center: Center/home position for pan (usually 0.0)
-        tilt_center: Center/home position for tilt (usually 0.0)
+        neck_pitch_min: Minimum neck pitch angle (default: -20°)
+        neck_pitch_max: Maximum neck pitch angle (default: +65°)
+        head_pitch_min: Minimum head pitch angle (default: -45°)
+        head_pitch_max: Maximum head pitch angle (default: +45°)
+        head_yaw_min: Minimum head yaw angle (default: -90°, MG90S servo limit)
+        head_yaw_max: Maximum head yaw angle (default: +90°, MG90S servo limit)
+        head_roll_min: Minimum head roll angle (default: -30°)
+        head_roll_max: Maximum head roll angle (default: +30°)
+        neck_pitch_center: Center position for neck pitch (default: 0.0)
+        head_pitch_center: Center position for head pitch (default: 0.0)
+        head_yaw_center: Center position for head yaw (default: 0.0)
+        head_roll_center: Center position for head roll (default: 0.0)
 
     Example:
-        >>> limits = HeadLimits(pan_min=-90, pan_max=90, tilt_min=-45, tilt_max=45)
-        >>> limits.pan_center
+        >>> limits = HeadLimits(
+        ...     neck_pitch_min=-20, neck_pitch_max=65,
+        ...     head_pitch_min=-45, head_pitch_max=45,
+        ...     head_yaw_min=-90, head_yaw_max=90,
+        ...     head_roll_min=-30, head_roll_max=30
+        ... )
+        >>> limits.head_yaw_center
         0.0
     """
-    pan_min: float = -90.0
-    pan_max: float = 90.0
-    tilt_min: float = -45.0
-    tilt_max: float = 45.0
-    pan_center: float = 0.0
-    tilt_center: float = 0.0
+    # Neck pitch limits (base neck movement)
+    neck_pitch_min: float = -20.0
+    neck_pitch_max: float = 65.0
+    neck_pitch_center: float = 0.0
+
+    # Head pitch limits (nod)
+    head_pitch_min: float = -45.0
+    head_pitch_max: float = 45.0
+    head_pitch_center: float = 0.0
+
+    # Head yaw limits (pan/rotate) - MG90S servo physical limit is ±90°
+    head_yaw_min: float = -90.0
+    head_yaw_max: float = 90.0
+    head_yaw_center: float = 0.0
+
+    # Head roll limits (tilt side-to-side)
+    head_roll_min: float = -30.0
+    head_roll_max: float = 30.0
+    head_roll_center: float = 0.0
 
     def __post_init__(self):
         """Validate limit configuration."""
-        if self.pan_min >= self.pan_max:
-            raise ValueError(f"pan_min ({self.pan_min}) must be < pan_max ({self.pan_max})")
-        if self.tilt_min >= self.tilt_max:
-            raise ValueError(f"tilt_min ({self.tilt_min}) must be < tilt_max ({self.tilt_max})")
-        if not (self.pan_min <= self.pan_center <= self.pan_max):
-            raise ValueError(f"pan_center ({self.pan_center}) must be within pan limits")
-        if not (self.tilt_min <= self.tilt_center <= self.tilt_max):
-            raise ValueError(f"tilt_center ({self.tilt_center}) must be within tilt limits")
+        # Validate neck_pitch
+        if self.neck_pitch_min >= self.neck_pitch_max:
+            raise ValueError(f"neck_pitch_min ({self.neck_pitch_min}) must be < neck_pitch_max ({self.neck_pitch_max})")
+        if not (self.neck_pitch_min <= self.neck_pitch_center <= self.neck_pitch_max):
+            raise ValueError(f"neck_pitch_center ({self.neck_pitch_center}) must be within neck_pitch limits")
+
+        # Validate head_pitch
+        if self.head_pitch_min >= self.head_pitch_max:
+            raise ValueError(f"head_pitch_min ({self.head_pitch_min}) must be < head_pitch_max ({self.head_pitch_max})")
+        if not (self.head_pitch_min <= self.head_pitch_center <= self.head_pitch_max):
+            raise ValueError(f"head_pitch_center ({self.head_pitch_center}) must be within head_pitch limits")
+
+        # Validate head_yaw
+        if self.head_yaw_min >= self.head_yaw_max:
+            raise ValueError(f"head_yaw_min ({self.head_yaw_min}) must be < head_yaw_max ({self.head_yaw_max})")
+        if not (self.head_yaw_min <= self.head_yaw_center <= self.head_yaw_max):
+            raise ValueError(f"head_yaw_center ({self.head_yaw_center}) must be within head_yaw limits")
+
+        # Validate head_roll
+        if self.head_roll_min >= self.head_roll_max:
+            raise ValueError(f"head_roll_min ({self.head_roll_min}) must be < head_roll_max ({self.head_roll_max})")
+        if not (self.head_roll_min <= self.head_roll_center <= self.head_roll_max):
+            raise ValueError(f"head_roll_center ({self.head_roll_center}) must be within head_roll limits")
 
 
 @dataclass
 class HeadConfig:
-    """Configuration for HeadController.
+    """Configuration for 4-DOF HeadController.
 
     Attributes:
-        pan_channel: PCA9685 channel for pan servo (0-15)
-        tilt_channel: PCA9685 channel for tilt servo (0-15)
+        neck_pitch_channel: PCA9685 channel for neck pitch servo (0-15, default: 10)
+        head_pitch_channel: PCA9685 channel for head pitch servo (0-15, default: 11)
+        head_yaw_channel: PCA9685 channel for head yaw servo (0-15, default: 12)
+        head_roll_channel: PCA9685 channel for head roll servo (0-15, default: 13)
         limits: HeadLimits instance defining movement bounds
-        pan_inverted: If True, invert pan servo direction
-        tilt_inverted: If True, invert tilt servo direction
+        neck_pitch_inverted: If True, invert neck pitch servo direction
+        head_pitch_inverted: If True, invert head pitch servo direction
+        head_yaw_inverted: If True, invert head yaw servo direction
+        head_roll_inverted: If True, invert head roll servo direction
         default_speed_ms: Default movement duration in milliseconds
         easing: Default easing function name ('ease_in_out', 'ease_in', etc.)
 
     Example:
-        >>> config = HeadConfig(pan_channel=12, tilt_channel=13)
+        >>> config = HeadConfig(
+        ...     neck_pitch_channel=10,
+        ...     head_pitch_channel=11,
+        ...     head_yaw_channel=12,
+        ...     head_roll_channel=13
+        ... )
         >>> config.default_speed_ms
         300
     """
-    pan_channel: int
-    tilt_channel: int
+    neck_pitch_channel: int
+    head_pitch_channel: int
+    head_yaw_channel: int
+    head_roll_channel: int
     limits: HeadLimits = field(default_factory=HeadLimits)
-    pan_inverted: bool = False
-    tilt_inverted: bool = False
+    neck_pitch_inverted: bool = False
+    head_pitch_inverted: bool = False
+    head_yaw_inverted: bool = False
+    head_roll_inverted: bool = False
     default_speed_ms: int = 300
     easing: str = 'ease_in_out'
 
     def __post_init__(self):
         """Validate configuration."""
-        if not (0 <= self.pan_channel <= 15):
-            raise ValueError(f"pan_channel must be 0-15, got {self.pan_channel}")
-        if not (0 <= self.tilt_channel <= 15):
-            raise ValueError(f"tilt_channel must be 0-15, got {self.tilt_channel}")
-        if self.pan_channel == self.tilt_channel:
-            raise ValueError(f"pan_channel and tilt_channel must differ, both are {self.pan_channel}")
+        channels = [
+            self.neck_pitch_channel,
+            self.head_pitch_channel,
+            self.head_yaw_channel,
+            self.head_roll_channel
+        ]
+        channel_names = [
+            "neck_pitch_channel",
+            "head_pitch_channel",
+            "head_yaw_channel",
+            "head_roll_channel"
+        ]
+
+        # Validate channel ranges
+        for ch, name in zip(channels, channel_names):
+            if not (0 <= ch <= 15):
+                raise ValueError(f"{name} must be 0-15, got {ch}")
+
+        # Validate uniqueness
+        if len(set(channels)) != 4:
+            raise ValueError(f"All channels must be unique. Got: {dict(zip(channel_names, channels))}")
+
         if self.default_speed_ms <= 0:
             raise ValueError(f"default_speed_ms must be > 0, got {self.default_speed_ms}")
         if self.easing not in EASING_LUTS:
@@ -173,41 +253,53 @@ class HeadConfig:
 
 @dataclass
 class HeadState:
-    """Current state of the head position.
+    """Current state of the 4-DOF head position.
 
     Immutable snapshot of head state for reading current position.
 
     Attributes:
-        pan: Current pan angle in degrees
-        tilt: Current tilt angle in degrees
+        neck_pitch: Current neck pitch angle in degrees
+        head_pitch: Current head pitch angle in degrees
+        head_yaw: Current head yaw angle in degrees
+        head_roll: Current head roll angle in degrees
         is_moving: True if head is currently in motion
-        target_pan: Target pan angle (if moving)
-        target_tilt: Target tilt angle (if moving)
+        target_neck_pitch: Target neck pitch angle (if moving)
+        target_head_pitch: Target head pitch angle (if moving)
+        target_head_yaw: Target head yaw angle (if moving)
+        target_head_roll: Target head roll angle (if moving)
         movement_type: Current movement type (if moving)
     """
-    pan: float
-    tilt: float
+    neck_pitch: float
+    head_pitch: float
+    head_yaw: float
+    head_roll: float
     is_moving: bool = False
-    target_pan: Optional[float] = None
-    target_tilt: Optional[float] = None
+    target_neck_pitch: Optional[float] = None
+    target_head_pitch: Optional[float] = None
+    target_head_yaw: Optional[float] = None
+    target_head_roll: Optional[float] = None
     movement_type: Optional[HeadMovementType] = None
 
 
 @dataclass
 class _Keyframe:
-    """Internal keyframe for animation trajectory.
+    """Internal keyframe for 4-DOF animation trajectory.
 
     Pre-computed position at a specific time for pose-to-pose animation.
 
     Attributes:
         time_ms: Time offset from animation start
-        pan: Pan angle at this keyframe
-        tilt: Tilt angle at this keyframe
+        neck_pitch: Neck pitch angle at this keyframe
+        head_pitch: Head pitch angle at this keyframe
+        head_yaw: Head yaw angle at this keyframe
+        head_roll: Head roll angle at this keyframe
         easing: Easing function for interpolation TO this keyframe
     """
     time_ms: int
-    pan: float
-    tilt: float
+    neck_pitch: float
+    head_pitch: float
+    head_yaw: float
+    head_roll: float
     easing: str = 'ease_in_out'
 
 
@@ -216,11 +308,17 @@ class _Keyframe:
 # =============================================================================
 
 class HeadController:
-    """2-DOF pan/tilt head controller with expressive movements.
+    """4-DOF head controller with expressive movements (V2-compatible).
 
-    Provides smooth, animation-quality head movements with:
-    - Direct positioning (look_at)
-    - Expressive gestures (nod, shake, glance, tilt)
+    Provides smooth, animation-quality head movements using 4 degrees of freedom:
+    - neck_pitch: Base neck up/down movement
+    - head_pitch: Head nod forward/back
+    - head_yaw: Head rotate left/right
+    - head_roll: Head tilt side-to-side (Pixar secret!)
+
+    Features:
+    - Direct positioning (move_to, look_at for backwards compatibility)
+    - Expressive gestures (nod, shake, glance, tilt_curious)
     - Emergency stop capability
     - Thread-safe operation
 
@@ -233,7 +331,7 @@ class HeadController:
     - TIMING: Easing functions for natural acceleration/deceleration
       (ease_in_out by default, asymmetric timing for nods)
     - SECONDARY ACTION: Micro-movements for liveliness
-      (slight tilt accompanying pan movements)
+      (slight roll accompanying yaw movements)
     - EXAGGERATION: Push poses for clarity
       (first shake is 110% amplitude)
     - APPEAL: Personality in every movement
@@ -247,12 +345,17 @@ class HeadController:
     Example:
         >>> from src.drivers.servo.pca9685 import PCA9685Driver
         >>> driver = PCA9685Driver()
-        >>> config = HeadConfig(pan_channel=12, tilt_channel=13)
+        >>> config = HeadConfig(
+        ...     neck_pitch_channel=10,
+        ...     head_pitch_channel=11,
+        ...     head_yaw_channel=12,
+        ...     head_roll_channel=13
+        ... )
         >>> head = HeadController(driver, config)
-        >>> head.look_at(pan=30, tilt=15, duration_ms=500)
+        >>> head.move_to(neck_pitch=10, head_pitch=0, head_yaw=30, head_roll=5)
         >>> head.nod(count=2, amplitude=15, speed_ms=200)
-        >>> position = head.get_current_position()
-        >>> print(f"Pan: {position[0]}, Tilt: {position[1]}")
+        >>> state = head.get_state()
+        >>> print(f"Yaw: {state.head_yaw}, Pitch: {state.head_pitch}")
 
     Attributes:
         driver: PCA9685Driver instance for servo control
@@ -287,15 +390,19 @@ class HeadController:
         self._lock = threading.RLock()
         self._emergency_stopped = threading.Event()
 
-        # Current state
-        self._current_pan: float = config.limits.pan_center
-        self._current_tilt: float = config.limits.tilt_center
+        # Current state (4 DOF)
+        self._current_neck_pitch: float = config.limits.neck_pitch_center
+        self._current_head_pitch: float = config.limits.head_pitch_center
+        self._current_head_yaw: float = config.limits.head_yaw_center
+        self._current_head_roll: float = config.limits.head_roll_center
 
         # Animation state
         self._is_moving: bool = False
         self._movement_type: Optional[HeadMovementType] = None
-        self._target_pan: Optional[float] = None
-        self._target_tilt: Optional[float] = None
+        self._target_neck_pitch: Optional[float] = None
+        self._target_head_pitch: Optional[float] = None
+        self._target_head_yaw: Optional[float] = None
+        self._target_head_roll: Optional[float] = None
 
         # Animation trajectory (pre-computed keyframes)
         self._keyframes: List[_Keyframe] = []
@@ -307,45 +414,60 @@ class HeadController:
         self._stop_animation = threading.Event()
         self._animation_complete = threading.Event()  # FIX H-005: Signal for wait_for_completion
         self._animation_complete.set()  # Initially complete (not animating)
+        # FIX C-1: Generation counter prevents zombie threads from writing stale positions
+        self._animation_generation: int = 0
 
-        # Callback
+        # Callback (class-level)
         self._on_movement_complete: Optional[Callable[[HeadMovementType], None]] = None
+        # Per-call callback (for on_complete parameter)
+        self._pending_on_complete: Optional[Callable[[bool], None]] = None
 
         # FIX H-NEW-004: Thread-safe private RNG instance
         self._rng = random.Random()
 
         # Initialize servos to center position
-        self._move_servos_to(self._current_pan, self._current_tilt)
+        self._move_servos_to(
+            self._current_neck_pitch,
+            self._current_head_pitch,
+            self._current_head_yaw,
+            self._current_head_roll
+        )
 
     # =========================================================================
     # PUBLIC METHODS - Movement Commands
     # =========================================================================
 
-    def look_at(
+    def move_to(
         self,
-        pan: float,
-        tilt: float,
+        neck_pitch: Optional[float] = None,
+        head_pitch: Optional[float] = None,
+        head_yaw: Optional[float] = None,
+        head_roll: Optional[float] = None,
         duration_ms: Optional[int] = None,
         easing: Optional[str] = None,
-        blocking: bool = False
+        blocking: bool = False,
+        on_complete: Optional[Callable[[bool], None]] = None
     ) -> bool:
-        """Move head to specified pan/tilt position.
+        """Move head to specified 4-DOF position.
 
         Smoothly interpolates from current position to target using
-        the specified easing function. Applies Disney principles:
+        the specified easing function. Omitted parameters hold their current values.
 
         Disney Principles Applied:
         --------------------------
         - SLOW IN/SLOW OUT: Uses ease_in_out by default for natural motion
         - FOLLOW THROUGH: Adds 5% overshoot then settles to target
-        - ARCS: Interpolates pan and tilt with slight curve for organic feel
+        - ARCS: Interpolates all 4 DOF with slight curve for organic feel
 
         Args:
-            pan: Target pan angle in degrees (clamped to limits)
-            tilt: Target tilt angle in degrees (clamped to limits)
+            neck_pitch: Target neck pitch angle (None = hold current)
+            head_pitch: Target head pitch angle (None = hold current)
+            head_yaw: Target head yaw angle (None = hold current)
+            head_roll: Target head roll angle (None = hold current)
             duration_ms: Movement duration (None = use config default)
             easing: Easing function name (None = use config default)
             blocking: If True, wait for movement to complete
+            on_complete: Optional callback called with True on success, False on interrupt
 
         Returns:
             True if movement initiated successfully
@@ -353,8 +475,32 @@ class HeadController:
         Note:
             Values outside limits are clamped, not rejected.
             Use get_state() to check actual target after clamping.
+
+        Raises:
+            ValueError: If any angle value is NaN or Inf
+
+        Example:
+            >>> # Move just yaw (pan), hold everything else
+            >>> head.move_to(head_yaw=30)
+            >>> # Move to full expressive pose
+            >>> head.move_to(neck_pitch=10, head_pitch=-5, head_yaw=30, head_roll=10)
         """
+        # Validate inputs for NaN/Inf
+        for name, value in [("neck_pitch", neck_pitch), ("head_pitch", head_pitch),
+                            ("head_yaw", head_yaw), ("head_roll", head_roll)]:
+            if value is not None:
+                if math.isnan(value):
+                    if on_complete:
+                        on_complete(False)
+                    raise ValueError(f"{name} is NaN - invalid angle value")
+                if math.isinf(value):
+                    if on_complete:
+                        on_complete(False)
+                    raise ValueError(f"{name} is Inf - invalid angle value")
+
         if self._emergency_stopped.is_set():
+            if on_complete:
+                on_complete(False)
             return False
 
         # Apply defaults
@@ -363,61 +509,198 @@ class HeadController:
 
         # Validate easing
         if easing not in EASING_LUTS:
+            if on_complete:
+                on_complete(False)
             raise ValueError(f"Unknown easing: {easing}. Valid: {list(EASING_LUTS.keys())}")
 
-        # Clamp to limits
-        pan = self._clamp_pan(pan)
-        tilt = self._clamp_tilt(tilt)
-
         with self._lock:
+            # Use current values if not specified
+            target_neck_pitch = neck_pitch if neck_pitch is not None else self._current_neck_pitch
+            target_head_pitch = head_pitch if head_pitch is not None else self._current_head_pitch
+            target_head_yaw = head_yaw if head_yaw is not None else self._current_head_yaw
+            target_head_roll = head_roll if head_roll is not None else self._current_head_roll
+
+            # Clamp to limits
+            target_neck_pitch = self._clamp_neck_pitch(target_neck_pitch)
+            target_head_pitch = self._clamp_head_pitch(target_head_pitch)
+            target_head_yaw = self._clamp_head_yaw(target_head_yaw)
+            target_head_roll = self._clamp_head_roll(target_head_roll)
+
             # Cancel any existing animation
             self._cancel_animation_internal()
 
             # Build keyframes with Disney principles
-            keyframes = self._build_look_at_keyframes(
-                start_pan=self._current_pan,
-                start_tilt=self._current_tilt,
-                end_pan=pan,
-                end_tilt=tilt,
+            keyframes = self._build_move_to_keyframes(
+                start_neck_pitch=self._current_neck_pitch,
+                start_head_pitch=self._current_head_pitch,
+                start_head_yaw=self._current_head_yaw,
+                start_head_roll=self._current_head_roll,
+                end_neck_pitch=target_neck_pitch,
+                end_head_pitch=target_head_pitch,
+                end_head_yaw=target_head_yaw,
+                end_head_roll=target_head_roll,
                 duration_ms=duration_ms,
                 easing=easing
             )
+
+            # Store per-call callback for non-blocking completion notification
+            self._pending_on_complete = on_complete
 
             # Start animation
             self._start_animation(
                 keyframes=keyframes,
                 movement_type=HeadMovementType.LOOK,
-                target_pan=pan,
-                target_tilt=tilt
+                target_neck_pitch=target_neck_pitch,
+                target_head_pitch=target_head_pitch,
+                target_head_yaw=target_head_yaw,
+                target_head_roll=target_head_roll
             )
 
         if blocking:
-            return self.wait_for_completion()
+            # FIX H-2: Clear pending callback so _complete_animation doesn't also fire it
+            # We'll call it ourselves after wait_for_completion returns
+            with self._lock:
+                self._pending_on_complete = None
+            result = self.wait_for_completion()
+            if on_complete is not None:
+                try:
+                    on_complete(result)
+                except Exception as e:
+                    _logger.warning(f"on_complete callback error: {e}", exc_info=True)
+            return result
 
         return True
+
+    def look_at(
+        self,
+        pan: float,
+        tilt: float,
+        duration_ms: Optional[int] = None,
+        easing: Optional[str] = None,
+        blocking: bool = False,
+        on_complete: Optional[Callable[[bool], None]] = None,
+        timeout_ms: Optional[int] = None
+    ) -> bool:
+        """Move head to specified pan/tilt position (backwards-compatible 2-DOF API).
+
+        DEPRECATED: This method provides backwards compatibility with 2-DOF code.
+        New code should use move_to() for full 4-DOF control.
+
+        Maps 2-DOF coordinates to 4-DOF system:
+        - pan → head_yaw (rotate left/right)
+        - tilt → head_pitch (nod up/down)
+        - neck_pitch → holds current value
+        - head_roll → holds current value
+
+        Disney Principles Applied:
+        --------------------------
+        - SLOW IN/SLOW OUT: Uses ease_in_out by default for natural motion
+        - FOLLOW THROUGH: Adds 5% overshoot then settles to target
+        - ARCS: Interpolates all DOF with slight curve for organic feel
+
+        Args:
+            pan: Target pan angle in degrees (mapped to head_yaw)
+            tilt: Target tilt angle in degrees (mapped to head_pitch)
+            duration_ms: Movement duration (None = use config default)
+            easing: Easing function name (None = use config default)
+            blocking: If True, wait for movement to complete
+            on_complete: Optional callback called with True on success, False on interrupt
+            timeout_ms: Maximum time to wait if blocking (None = wait indefinitely)
+
+        Returns:
+            True if movement initiated/completed successfully
+
+        Raises:
+            ValueError: If pan or tilt is NaN or Inf
+
+        Note:
+            Values outside limits are clamped, not rejected.
+            For full 4-DOF control, use move_to() instead.
+
+        Example:
+            >>> # Old 2-DOF style (still works)
+            >>> head.look_at(pan=30, tilt=15)
+            >>> # New 4-DOF style (recommended)
+            >>> head.move_to(head_yaw=30, head_pitch=15)
+        """
+        # Validate inputs for NaN/Inf - call on_complete before raising
+        if math.isnan(pan):
+            if on_complete:
+                on_complete(False)
+            raise ValueError("pan is NaN - invalid angle value")
+        if math.isinf(pan):
+            if on_complete:
+                on_complete(False)
+            raise ValueError("pan is Inf - invalid angle value")
+        if math.isnan(tilt):
+            if on_complete:
+                on_complete(False)
+            raise ValueError("tilt is NaN - invalid angle value")
+        if math.isinf(tilt):
+            if on_complete:
+                on_complete(False)
+            raise ValueError("tilt is Inf - invalid angle value")
+
+        # For blocking calls with timeout, handle manually instead of through move_to
+        if blocking and timeout_ms is not None:
+            # Start movement without blocking
+            started = self.move_to(
+                neck_pitch=None,
+                head_pitch=tilt,
+                head_yaw=pan,
+                head_roll=None,
+                duration_ms=duration_ms,
+                easing=easing,
+                blocking=False,
+                on_complete=None  # We handle callback manually
+            )
+            if not started:
+                if on_complete:
+                    on_complete(False)
+                return False
+
+            # Wait with timeout
+            result = self.wait_for_completion(timeout_ms=timeout_ms)
+            if on_complete:
+                try:
+                    on_complete(result)
+                except Exception as e:
+                    _logger.warning(f"on_complete callback error: {e}", exc_info=True)
+            return result
+
+        # Map 2-DOF to 4-DOF: pan→head_yaw, tilt→head_pitch
+        return self.move_to(
+            neck_pitch=None,  # Hold current
+            head_pitch=tilt,  # Map tilt to head_pitch
+            head_yaw=pan,     # Map pan to head_yaw
+            head_roll=None,   # Hold current
+            duration_ms=duration_ms,
+            easing=easing,
+            blocking=blocking,
+            on_complete=on_complete
+        )
 
     def nod(
         self,
         count: int = 2,
         amplitude: float = 15.0,
-        speed_ms: int = 200,
+        speed_ms: int = 500,
         blocking: bool = False
     ) -> bool:
-        """Perform nodding gesture (vertical yes motion).
-
-        Creates a natural nodding motion applying Disney principles:
+        """Perform nodding gesture (vertical affirmation).
 
         Disney Principles Applied:
         --------------------------
-        - ANTICIPATION: Small upward movement (10% of amplitude) before first nod down
-        - TIMING: Asymmetric - fast down (60%), slow up (40%) for weight
-        - FOLLOW THROUGH: Final settle slightly past center then back
-        - EXAGGERATION: First nod slightly larger for emphasis
+        - ANTICIPATION: Slight upward movement before nodding down
+        - TIMING ASYMMETRY: Faster down (gravity), slower up (natural physics)
+        - FOLLOW THROUGH: Slight overshoot at bottom, smooth settle
+
+        This creates a natural "yes" head nod that feels alive and organic.
 
         Args:
-            count: Number of nod cycles (1-5, clamped)
-            amplitude: Peak tilt angle change in degrees (clamped to limits)
-            speed_ms: Duration of one nod cycle in milliseconds
+            count: Number of nod cycles (1-5, clamped, typically 1-2)
+            amplitude: Peak head pitch angle in degrees (typically 15-20)
+            speed_ms: Duration of one complete nod cycle in milliseconds (typically 500)
             blocking: If True, wait for animation to complete
 
         Returns:
@@ -425,38 +708,37 @@ class HeadController:
 
         Raises:
             RuntimeError: If in emergency stop state
+
+        Example:
+            >>> # Single affirmative nod
+            >>> head.nod(count=1, amplitude=20.0, speed_ms=500)
+            >>> # Enthusiastic double nod
+            >>> head.nod(count=2, amplitude=25.0, speed_ms=400)
         """
         if self._emergency_stopped.is_set():
             raise RuntimeError("Cannot nod: emergency stop active")
 
         # Clamp parameters
         count = max(1, min(5, count))
-
-        # Ensure amplitude doesn't exceed tilt limits
-        max_amplitude = min(
-            self._current_tilt - self._config.limits.tilt_min,
-            self._config.limits.tilt_max - self._current_tilt
-        )
-        amplitude = min(amplitude, max_amplitude)
+        if amplitude <= 0:
+            raise ValueError(f"amplitude must be > 0, got {amplitude}")
+        amplitude = max(1.0, min(45.0, amplitude))  # Clamp to 1-45° range
 
         with self._lock:
             # Cancel any existing animation
             self._cancel_animation_internal()
 
-            # Build keyframes with Disney nod animation
-            keyframes = self._build_nod_keyframes(
-                center_tilt=self._current_tilt,
-                amplitude=amplitude,
-                count=count,
-                speed_ms=speed_ms
-            )
+            # Build keyframes with Disney principles
+            keyframes = self._build_nod_keyframes(count, amplitude, speed_ms)
 
             # Start animation
             self._start_animation(
                 keyframes=keyframes,
                 movement_type=HeadMovementType.NOD,
-                target_pan=self._current_pan,
-                target_tilt=self._current_tilt  # Returns to starting position
+                target_neck_pitch=self._current_neck_pitch,  # Hold
+                target_head_pitch=0.0,  # Return to center
+                target_head_yaw=self._current_head_yaw,  # Hold
+                target_head_roll=self._current_head_roll  # Hold
             )
 
         if blocking:
@@ -467,61 +749,63 @@ class HeadController:
     def shake(
         self,
         count: int = 2,
-        amplitude: float = 20.0,
-        speed_ms: int = 200,
+        amplitude: float = 25.0,
+        speed_ms: int = 400,
         blocking: bool = False
     ) -> bool:
-        """Perform head shake gesture (horizontal no motion).
-
-        Creates a natural head shake applying Disney principles:
+        """Perform head shake gesture (horizontal negation).
 
         Disney Principles Applied:
         --------------------------
-        - ANTICIPATION: Small movement opposite to first shake direction
-        - EXAGGERATION: First shake is 110% amplitude, decays to 80%
-        - TIMING: Quick snap to position, slower return through center
-        - FOLLOW THROUGH: Final settle with small overshoot
+        - ANTICIPATION: Slight opposite turn before main shake
+        - EXAGGERATION: First shake is 110% amplitude for clarity
+        - DECAY: Each subsequent shake reduces by 10% (natural deceleration)
+
+        This creates a natural "no" head shake with personality and appeal.
 
         Args:
-            count: Number of shake cycles (1-5, clamped)
-            amplitude: Peak pan angle change in degrees (clamped to limits)
-            speed_ms: Duration of one shake cycle in milliseconds
+            count: Number of shake cycles (1-5, clamped, typically 2-3)
+            amplitude: Peak head yaw angle in degrees (typically 20-25)
+            speed_ms: Duration of one complete shake cycle in milliseconds (typically 400)
             blocking: If True, wait for animation to complete
 
         Returns:
             True if shake animation started
+
+        Example:
+            >>> # Standard "no" shake
+            >>> head.shake(count=2, amplitude=25.0, speed_ms=400)
+            >>> # Emphatic rejection
+            >>> head.shake(count=3, amplitude=30.0, speed_ms=300)
+
+        Raises:
+            RuntimeError: If emergency stop is active
         """
+        # FIX H-4: Consistent with nod() - raise RuntimeError, don't silently return False
         if self._emergency_stopped.is_set():
-            return False
+            raise RuntimeError("Cannot shake: emergency stop active")
 
         # Clamp parameters
         count = max(1, min(5, count))
-
-        # Ensure amplitude doesn't exceed pan limits
-        max_amplitude = min(
-            self._current_pan - self._config.limits.pan_min,
-            self._config.limits.pan_max - self._current_pan
-        )
-        amplitude = min(amplitude, max_amplitude)
+        if amplitude <= 0:
+            raise ValueError(f"amplitude must be > 0, got {amplitude}")
+        amplitude = max(1.0, min(90.0, amplitude))  # Clamp to 1-90° range (MG90S limit)
 
         with self._lock:
             # Cancel any existing animation
             self._cancel_animation_internal()
 
-            # Build keyframes with Disney shake animation
-            keyframes = self._build_shake_keyframes(
-                center_pan=self._current_pan,
-                amplitude=amplitude,
-                count=count,
-                speed_ms=speed_ms
-            )
+            # Build keyframes with Disney principles
+            keyframes = self._build_shake_keyframes(count, amplitude, speed_ms)
 
             # Start animation
             self._start_animation(
                 keyframes=keyframes,
                 movement_type=HeadMovementType.SHAKE,
-                target_pan=self._current_pan,
-                target_tilt=self._current_tilt  # Returns to starting position
+                target_neck_pitch=self._current_neck_pitch,  # Hold
+                target_head_pitch=self._current_head_pitch,  # Hold
+                target_head_yaw=0.0,  # Return to center
+                target_head_roll=self._current_head_roll  # Hold
             )
 
         if blocking:
@@ -531,69 +815,57 @@ class HeadController:
 
     def random_glance(
         self,
-        max_deviation: float = 30.0,
         hold_ms: int = 500,
+        return_speed_ms: int = 400,
         blocking: bool = False
     ) -> bool:
         """Perform quick random glance and return.
 
-        Simulates curious/alert behavior:
-        1. Quick movement to random offset
-        2. Brief hold (as if observing)
-        3. Smooth return to original position
-
         Disney Principles Applied:
         --------------------------
-        - APPEAL: Natural variation, never exactly the same
-        - SECONDARY ACTION: Slight tilt (15%) accompanying pan
-        - TIMING: Quick movement to glance (ease_out), slower return (ease_in_out)
-        - ANTICIPATION: Small opposite movement before glance
+        - APPEAL: Natural variation, never exactly the same (random left/right)
+        - SECONDARY ACTION: head_roll follows head_yaw with 150ms lag (weight shift)
+        - TIMING: Quick snap to target, slower return
+
+        This simulates alert/curious behavior with organic weight transfer.
 
         Args:
-            max_deviation: Maximum angle offset from current position
-            hold_ms: Duration to hold at glance position
+            hold_ms: Duration to hold at glance position (typically 500ms)
+            return_speed_ms: Time to return to center (typically 400ms)
             blocking: If True, wait for complete glance cycle
 
         Returns:
             True if glance started
+
+        Raises:
+            RuntimeError: If emergency stop is active
+
+        Example:
+            >>> # Quick alert glance
+            >>> head.random_glance(hold_ms=500, return_speed_ms=400)
         """
+        # FIX H-4: Consistent with nod() - raise RuntimeError
         if self._emergency_stopped.is_set():
-            return False
+            raise RuntimeError("Cannot random_glance: emergency stop active")
 
         with self._lock:
+            # Generate random glance target (left or right, 30° typical)
+            target_yaw = self._rng.choice([-30.0, 30.0])
+
             # Cancel any existing animation
             self._cancel_animation_internal()
 
-            # Generate random glance target with natural variation
-            # APPEAL principle: Never exactly the same
-            pan_offset = self._rng.uniform(-max_deviation, max_deviation)  # FIX H-NEW-004
-
-            # Add slight bias toward larger movements for appeal
-            if abs(pan_offset) < max_deviation * 0.3:
-                pan_offset *= 1.5
-
-            # SECONDARY ACTION: Slight tilt accompanying pan
-            tilt_offset = pan_offset * SECONDARY_TILT_RATIO * self._rng.uniform(0.8, 1.2)  # FIX H-NEW-004
-
-            # Clamp to limits
-            glance_pan = self._clamp_pan(self._current_pan + pan_offset)
-            glance_tilt = self._clamp_tilt(self._current_tilt + tilt_offset)
-
-            # Build keyframes for glance animation
-            keyframes = self._build_glance_keyframes(
-                start_pan=self._current_pan,
-                start_tilt=self._current_tilt,
-                glance_pan=glance_pan,
-                glance_tilt=glance_tilt,
-                hold_ms=hold_ms
-            )
+            # Build keyframes with Disney principles
+            keyframes = self._build_glance_keyframes(target_yaw, hold_ms, return_speed_ms)
 
             # Start animation
             self._start_animation(
                 keyframes=keyframes,
                 movement_type=HeadMovementType.GLANCE,
-                target_pan=self._current_pan,
-                target_tilt=self._current_tilt  # Returns to starting position
+                target_neck_pitch=self._current_neck_pitch,  # Hold
+                target_head_pitch=self._current_head_pitch,  # Hold
+                target_head_yaw=0.0,  # Return to center
+                target_head_roll=0.0  # Return to center
             )
 
         if blocking:
@@ -605,25 +877,25 @@ class HeadController:
         self,
         direction: str = 'right',
         angle: float = 20.0,
-        duration_ms: int = 400,
+        duration_ms: int = 600,
         blocking: bool = False
     ) -> bool:
-        """Tilt head curiously to one side.
+        """Tilt head curiously to one side (Pixar-style using head_roll!).
 
-        Disney-style curious pose with combined pan and tilt
-        for expressive questioning look (like a curious dog).
+        This is the SIGNATURE 4-DOF movement that showcases head_roll.
+        Creates that universally endearing "curious dog" head tilt.
 
         Disney Principles Applied:
         --------------------------
-        - APPEAL: Dog-like curious head tilt that's universally endearing
-        - ANTICIPATION: Small opposite movement first
-        - STAGING: Combined pan+tilt for clear, readable pose
-        - SLOW IN/SLOW OUT: Smooth easing into the tilt
+        - STAGING: head_roll is PRIMARY action (clear readable pose)
+        - SECONDARY ACTION: head_yaw follows 150ms later (supporting motion)
+        - ANTICIPATION: Slight opposite tilt before main movement
+        - APPEAL: Dog-like curious head tilt (universally endearing)
 
         Args:
-            direction: 'left' or 'right'
-            angle: Tilt angle in degrees
-            duration_ms: Movement duration
+            direction: 'left' or 'right' tilt direction
+            angle: Head roll tilt angle in degrees (typically 15-25)
+            duration_ms: Total animation time in milliseconds (typically 600)
             blocking: If True, wait for movement to complete
 
         Returns:
@@ -631,44 +903,34 @@ class HeadController:
 
         Raises:
             ValueError: If direction is not 'left' or 'right'
+            RuntimeError: If emergency stop is active
+
+        Example:
+            >>> # Classic curious tilt
+            >>> head.tilt_curious(direction='right', angle=20.0, duration_ms=600)
         """
         if direction not in ('left', 'right'):
             raise ValueError(f"direction must be 'left' or 'right', got '{direction}'")
 
+        # FIX H-4: Consistent with nod() - raise RuntimeError
         if self._emergency_stopped.is_set():
-            return False
+            raise RuntimeError("Cannot tilt_curious: emergency stop active")
 
         with self._lock:
             # Cancel any existing animation
             self._cancel_animation_internal()
 
-            # Calculate tilt direction
-            tilt_sign = 1.0 if direction == 'right' else -1.0
-
-            # STAGING: Combined pan and tilt for clear curious pose
-            # Slight pan toward the tilt direction
-            pan_offset = angle * 0.3 * tilt_sign
-
-            # Target position
-            target_tilt = self._clamp_tilt(self._current_tilt + angle * tilt_sign)
-            target_pan = self._clamp_pan(self._current_pan + pan_offset)
-
-            # Build keyframes with anticipation
-            keyframes = self._build_curious_tilt_keyframes(
-                start_pan=self._current_pan,
-                start_tilt=self._current_tilt,
-                target_pan=target_pan,
-                target_tilt=target_tilt,
-                direction=direction,
-                duration_ms=duration_ms
-            )
+            # Build keyframes with Disney principles
+            keyframes = self._build_curious_tilt_keyframes(direction, angle, duration_ms)
 
             # Start animation
             self._start_animation(
                 keyframes=keyframes,
                 movement_type=HeadMovementType.TILT,
-                target_pan=target_pan,
-                target_tilt=target_tilt
+                target_neck_pitch=self._current_neck_pitch,  # Hold
+                target_head_pitch=self._current_head_pitch,  # Hold
+                target_head_yaw=angle * 0.3 * (1.0 if direction == 'right' else -1.0),
+                target_head_roll=angle * (1.0 if direction == 'right' else -1.0)
             )
 
         if blocking:
@@ -681,7 +943,7 @@ class HeadController:
         duration_ms: Optional[int] = None,
         blocking: bool = False
     ) -> bool:
-        """Return head to center/home position.
+        """Return head to center/home position (all 4 DOF).
 
         Args:
             duration_ms: Movement duration (None = use default)
@@ -690,9 +952,11 @@ class HeadController:
         Returns:
             True if reset initiated
         """
-        return self.look_at(
-            pan=self._config.limits.pan_center,
-            tilt=self._config.limits.tilt_center,
+        return self.move_to(
+            neck_pitch=self._config.limits.neck_pitch_center,
+            head_pitch=self._config.limits.head_pitch_center,
+            head_yaw=self._config.limits.head_yaw_center,
+            head_roll=self._config.limits.head_roll_center,
             duration_ms=duration_ms,
             blocking=blocking
         )
@@ -730,20 +994,41 @@ class HeadController:
             self._movement_type = None
             self._keyframes.clear()
 
-            # Disable servos immediately
+            # Get per-call callback to notify of interruption
+            per_call_callback = self._pending_on_complete
+            self._pending_on_complete = None
+
+            # HOLD current position - keep PWM active to prevent servo going limp
+            # FIX C-4: disable_channel cuts PWM, causing MG90S to lose torque
+            # and the head to drop under gravity. Instead, command servos to
+            # hold their current position (active braking).
             try:
-                self._driver.disable_channel(self._config.pan_channel)
-                self._driver.disable_channel(self._config.tilt_channel)
+                self._move_servos_to(
+                    self._current_neck_pitch,
+                    self._current_head_pitch,
+                    self._current_head_yaw,
+                    self._current_head_roll
+                )
             except Exception:
                 # Best effort - don't raise during emergency stop
                 pass
+
+        # Signal completion for wait_for_completion()
+        self._animation_complete.set()
 
         # FIX H-003: Join animation thread after releasing lock to prevent orphans
         if animation_thread is not None and animation_thread.is_alive():
             animation_thread.join(timeout=0.1)  # 100ms timeout to prevent blocking
 
+        # Call per-call callback with False (interrupted)
+        if per_call_callback is not None:
+            try:
+                per_call_callback(False)
+            except Exception as e:
+                _logger.warning(f"on_complete callback error during emergency: {e}", exc_info=True)
+
     def reset_emergency(self) -> bool:
-        """Clear emergency stop state and re-enable servos.
+        """Clear emergency stop state and re-enable all 4 servos.
 
         Must be called explicitly after emergency_stop() before
         any movement commands will be accepted.
@@ -756,43 +1041,86 @@ class HeadController:
             self._emergency_stopped.clear()
             self._stop_animation.clear()
 
-            # Re-enable servos at current position
+            # Re-enable all servos at current position
             try:
-                self._move_servos_to(self._current_pan, self._current_tilt)
+                self._move_servos_to(
+                    self._current_neck_pitch,
+                    self._current_head_pitch,
+                    self._current_head_yaw,
+                    self._current_head_roll
+                )
                 return True
             except Exception:
                 return False
+
+    def power_off(self) -> None:
+        """Cut PWM to all servos - servos will go limp.
+
+        WARNING: Only call this when the robot is in a safe position
+        (e.g., head resting on a surface). Servos will lose all torque
+        and the head will drop under gravity.
+
+        Use emergency_stop() for normal stopping - it holds position.
+        Use power_off() only for shutdown or maintenance.
+        """
+        self.emergency_stop()
+        with self._lock:
+            try:
+                self._driver.disable_channel(self._config.neck_pitch_channel)
+                self._driver.disable_channel(self._config.head_pitch_channel)
+                self._driver.disable_channel(self._config.head_yaw_channel)
+                self._driver.disable_channel(self._config.head_roll_channel)
+            except Exception:
+                pass
 
     # =========================================================================
     # PUBLIC METHODS - State Query
     # =========================================================================
 
-    def get_current_position(self) -> Tuple[float, float]:
-        """Get current head position as (pan, tilt) tuple.
+    def get_current_position(self) -> Tuple[float, float, float, float]:
+        """Get current head position as 4-DOF tuple.
 
         Returns:
-            Tuple of (pan_angle, tilt_angle) in degrees
+            Tuple of (neck_pitch, head_pitch, head_yaw, head_roll) in degrees
 
         Note:
             If head is moving, returns last commanded position,
             not necessarily actual physical position.
+
+        Example:
+            >>> neck_p, head_p, head_y, head_r = head.get_current_position()
+            >>> print(f"Yaw: {head_y}, Pitch: {head_p}")
         """
         with self._lock:
-            return (self._current_pan, self._current_tilt)
+            return (
+                self._current_neck_pitch,
+                self._current_head_pitch,
+                self._current_head_yaw,
+                self._current_head_roll
+            )
 
     def get_state(self) -> HeadState:
-        """Get complete current head state.
+        """Get complete current 4-DOF head state.
 
         Returns:
-            HeadState snapshot with all current values
+            HeadState snapshot with all current 4-DOF values
+
+        Example:
+            >>> state = head.get_state()
+            >>> if state.is_moving:
+            ...     print(f"Moving to yaw={state.target_head_yaw}")
         """
         with self._lock:
             return HeadState(
-                pan=self._current_pan,
-                tilt=self._current_tilt,
+                neck_pitch=self._current_neck_pitch,
+                head_pitch=self._current_head_pitch,
+                head_yaw=self._current_head_yaw,
+                head_roll=self._current_head_roll,
                 is_moving=self._is_moving,
-                target_pan=self._target_pan,
-                target_tilt=self._target_tilt,
+                target_neck_pitch=self._target_neck_pitch,
+                target_head_pitch=self._target_head_pitch,
+                target_head_yaw=self._target_head_yaw,
+                target_head_roll=self._target_head_roll,
                 movement_type=self._movement_type
             )
 
@@ -841,58 +1169,74 @@ class HeadController:
     # PRIVATE METHODS - Keyframe Generation (Disney Principles)
     # =========================================================================
 
-    def _build_look_at_keyframes(
+    def _build_move_to_keyframes(
         self,
-        start_pan: float,
-        start_tilt: float,
-        end_pan: float,
-        end_tilt: float,
+        start_neck_pitch: float,
+        start_head_pitch: float,
+        start_head_yaw: float,
+        start_head_roll: float,
+        end_neck_pitch: float,
+        end_head_pitch: float,
+        end_head_yaw: float,
+        end_head_roll: float,
         duration_ms: int,
         easing: str
     ) -> List[_Keyframe]:
-        """Build keyframes for look_at movement.
+        """Build keyframes for 4-DOF move_to movement.
 
         Disney Principles:
         - SLOW IN/SLOW OUT: Uses specified easing
         - FOLLOW THROUGH: 5% overshoot then settle
-        - ARCS: Slight curve in motion path
+        - ARCS: Slight curve in motion path for all 4 DOF
         """
         keyframes = []
 
         # Calculate motion deltas
-        delta_pan = end_pan - start_pan
-        delta_tilt = end_tilt - start_tilt
+        delta_neck_pitch = end_neck_pitch - start_neck_pitch
+        delta_head_pitch = end_head_pitch - start_head_pitch
+        delta_head_yaw = end_head_yaw - start_head_yaw
+        delta_head_roll = end_head_roll - start_head_roll
 
         # Keyframe 0: Starting position
         keyframes.append(_Keyframe(
             time_ms=0,
-            pan=start_pan,
-            tilt=start_tilt,
+            neck_pitch=start_neck_pitch,
+            head_pitch=start_head_pitch,
+            head_yaw=start_head_yaw,
+            head_roll=start_head_roll,
             easing='linear'
         ))
 
         # FOLLOW THROUGH: Calculate overshoot position
-        overshoot_pan = end_pan + delta_pan * FOLLOW_THROUGH_OVERSHOOT
-        overshoot_tilt = end_tilt + delta_tilt * FOLLOW_THROUGH_OVERSHOOT
+        overshoot_neck_pitch = end_neck_pitch + delta_neck_pitch * FOLLOW_THROUGH_OVERSHOOT
+        overshoot_head_pitch = end_head_pitch + delta_head_pitch * FOLLOW_THROUGH_OVERSHOOT
+        overshoot_head_yaw = end_head_yaw + delta_head_yaw * FOLLOW_THROUGH_OVERSHOOT
+        overshoot_head_roll = end_head_roll + delta_head_roll * FOLLOW_THROUGH_OVERSHOOT
 
         # Clamp overshoot to limits
-        overshoot_pan = self._clamp_pan(overshoot_pan)
-        overshoot_tilt = self._clamp_tilt(overshoot_tilt)
+        overshoot_neck_pitch = self._clamp_neck_pitch(overshoot_neck_pitch)
+        overshoot_head_pitch = self._clamp_head_pitch(overshoot_head_pitch)
+        overshoot_head_yaw = self._clamp_head_yaw(overshoot_head_yaw)
+        overshoot_head_roll = self._clamp_head_roll(overshoot_head_roll)
 
         # Keyframe 1: Overshoot position (at 85% of duration)
         overshoot_time = int(duration_ms * 0.85)
         keyframes.append(_Keyframe(
             time_ms=overshoot_time,
-            pan=overshoot_pan,
-            tilt=overshoot_tilt,
+            neck_pitch=overshoot_neck_pitch,
+            head_pitch=overshoot_head_pitch,
+            head_yaw=overshoot_head_yaw,
+            head_roll=overshoot_head_roll,
             easing=easing
         ))
 
         # Keyframe 2: Final settle position
         keyframes.append(_Keyframe(
             time_ms=duration_ms,
-            pan=end_pan,
-            tilt=end_tilt,
+            neck_pitch=end_neck_pitch,
+            head_pitch=end_head_pitch,
+            head_yaw=end_head_yaw,
+            head_roll=end_head_roll,
             easing='ease_out'  # Smooth settle
         ))
 
@@ -900,189 +1244,204 @@ class HeadController:
 
     def _build_nod_keyframes(
         self,
-        center_tilt: float,
-        amplitude: float,
         count: int,
+        amplitude: float,
         speed_ms: int
     ) -> List[_Keyframe]:
-        """Build keyframes for nod animation.
+        """Build keyframes for vertical affirmation (nod) gesture.
 
-        Disney Principles:
-        - ANTICIPATION: Small upward movement (10%) before first nod
-        - TIMING: Asymmetric - fast down (60%), slow up (40%)
-        - FOLLOW THROUGH: Final settle past center
-        - EXAGGERATION: First nod slightly larger
+        Disney Principles: ANTICIPATION, TIMING ASYMMETRY, FOLLOW THROUGH
+
+        The nod movement showcases natural head motion with:
+        1. ANTICIPATION: Slight upward movement before nodding down (10% amplitude)
+        2. TIMING ASYMMETRY: Faster down (60% time), slower up (40% time) - gravity!
+        3. FOLLOW THROUGH: Slight overshoot at bottom, smooth settle
+
+        This mimics how real heads nod: gravity accelerates the downward motion,
+        then momentum carries it slightly past, then muscles slow the return.
+
+        Args:
+            count: Number of nod cycles (typically 1-3)
+            amplitude: Nod angle in degrees (typically 15-20, down is negative pitch)
+            speed_ms: Time per complete nod cycle in milliseconds (typically 500)
+
+        Returns:
+            List of keyframes for complete nod sequence
+
+        Example:
+            >>> # Single affirmative nod
+            >>> keyframes = self._build_nod_keyframes(
+            ...     count=1,
+            ...     amplitude=20.0,
+            ...     speed_ms=500
+            ... )
+            >>> # Results in: anticipation up → fast nod down → overshoot → slow return
         """
         keyframes = []
-        current_time = 0
-        current_pan = self._current_pan
+        t = 0
 
-        # Keyframe 0: Starting position
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=current_pan,
-            tilt=center_tilt,
-            easing='linear'
-        ))
+        # Get current position for hold DOFs
+        hold_neck_pitch = self._current_neck_pitch
+        hold_head_yaw = self._current_head_yaw
+        hold_head_roll = self._current_head_roll
 
-        # ANTICIPATION: Small upward movement before first nod
-        anticipation_tilt = self._clamp_tilt(center_tilt + amplitude * ANTICIPATION_RATIO)
-        anticipation_time = int(speed_ms * 0.15)  # Quick anticipation
-        current_time += anticipation_time
+        # FIX C-3: Each nod cycle gets its own anticipation + timing budget
+        # Previously anticipation was subtracted once from total, causing
+        # multi-nod animations to be ~10% shorter than expected.
+        # Now each cycle = speed_ms, with anticipation inside the cycle.
 
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=current_pan,
-            tilt=anticipation_tilt,
-            easing='ease_out'
-        ))
-
-        # Nod cycles
         for i in range(count):
-            # EXAGGERATION: First nod is larger
-            if i == 0:
-                nod_amplitude = amplitude * 1.1
-            else:
-                # Gradual decay for natural feel
-                nod_amplitude = amplitude * (0.95 ** i)
+            cycle_start = t
 
-            # TIMING: Asymmetric - fast down (60%), slow up (40%)
-            down_time = int(speed_ms * TIMING_ASYMMETRY_RATIO)
-            up_time = speed_ms - down_time
+            # ANTICIPATION: Slight upward movement before nod (Disney Principle #2)
+            # 10% of amplitude, opposite direction (up before down)
+            # First cycle gets full anticipation, subsequent cycles get reduced
+            anticipation_scale = 1.0 if i == 0 else 0.5  # Reduced for follow-up nods
+            anticipation_angle = amplitude * ANTICIPATION_RATIO * anticipation_scale
+            anticipation_angle = self._clamp_head_pitch(anticipation_angle)
 
-            # Nod down
-            nod_down_tilt = self._clamp_tilt(center_tilt - nod_amplitude)
-            current_time += down_time
+            anticipation_time = int(speed_ms * 0.15)
+
             keyframes.append(_Keyframe(
-                time_ms=current_time,
-                pan=current_pan,
-                tilt=nod_down_tilt,
-                easing='ease_in'  # Accelerate into nod
+                time_ms=t,
+                neck_pitch=hold_neck_pitch,
+                head_pitch=anticipation_angle,  # Slight up before down
+                head_yaw=hold_head_yaw,
+                head_roll=hold_head_roll,
+                easing='ease_in'
+            ))
+            t += anticipation_time
+
+            # NOD CYCLES with TIMING ASYMMETRY (Disney Principle #9)
+            # Down motion: 60% of remaining time (faster - gravity assists)
+            # Up motion: 40% of remaining time (slower - fighting gravity)
+            remaining_time = speed_ms - anticipation_time
+
+            # DOWNWARD NOD (fast - gravity assisted)
+            down_time = int(remaining_time * TIMING_ASYMMETRY_RATIO)
+
+            # Calculate down position with FOLLOW THROUGH overshoot
+            down_angle = -amplitude * (1.0 + FOLLOW_THROUGH_OVERSHOOT)
+            down_angle = self._clamp_head_pitch(down_angle)
+
+            keyframes.append(_Keyframe(
+                time_ms=t,
+                neck_pitch=hold_neck_pitch,
+                head_pitch=down_angle,  # Fast down with overshoot
+                head_yaw=hold_head_yaw,
+                head_roll=hold_head_roll,
+                easing='ease_in'  # Accelerate into the nod (gravity!)
+            ))
+            t += down_time
+
+            # SETTLE at bottom (FOLLOW THROUGH - remove overshoot)
+            settle_angle = self._clamp_head_pitch(-amplitude)
+            settle_time = int(remaining_time * 0.1)
+
+            keyframes.append(_Keyframe(
+                time_ms=t,
+                neck_pitch=hold_neck_pitch,
+                head_pitch=settle_angle,  # Settle to target (no overshoot)
+                head_yaw=hold_head_yaw,
+                head_roll=hold_head_roll,
+                easing='ease_out'  # Smooth deceleration
+            ))
+            t += settle_time
+
+            # UPWARD RETURN (slower - fighting gravity)
+            up_time = int(remaining_time * (1.0 - TIMING_ASYMMETRY_RATIO - 0.1))
+
+            keyframes.append(_Keyframe(
+                time_ms=t,
+                neck_pitch=hold_neck_pitch,
+                head_pitch=0.0,  # Return to center
+                head_yaw=hold_head_yaw,
+                head_roll=hold_head_roll,
+                easing='ease_out'  # Slow deceleration at top
             ))
 
-            # Nod up (through center)
-            current_time += up_time
-            keyframes.append(_Keyframe(
-                time_ms=current_time,
-                pan=current_pan,
-                tilt=center_tilt,
-                easing='ease_out'  # Decelerate at top
-            ))
-
-        # FOLLOW THROUGH: Final settle slightly past center then back
-        follow_through_tilt = self._clamp_tilt(center_tilt + amplitude * 0.05)
-        current_time += FOLLOW_THROUGH_SETTLE_MS // 2
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=current_pan,
-            tilt=follow_through_tilt,
-            easing='ease_out'
-        ))
-
-        # Settle to final position
-        current_time += FOLLOW_THROUGH_SETTLE_MS // 2
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=current_pan,
-            tilt=center_tilt,
-            easing='ease_in_out'
-        ))
+            # Advance exactly one speed_ms per cycle for predictable timing
+            t = cycle_start + speed_ms
 
         return keyframes
 
     def _build_shake_keyframes(
         self,
-        center_pan: float,
-        amplitude: float,
         count: int,
+        amplitude: float,
         speed_ms: int
     ) -> List[_Keyframe]:
-        """Build keyframes for shake animation.
+        """Build keyframes for horizontal negation (shake) gesture.
 
-        Disney Principles:
-        - ANTICIPATION: Movement opposite to first shake direction
-        - EXAGGERATION: First shake 110%, decay to 80%
-        - TIMING: Quick snap, slower return
-        - FOLLOW THROUGH: Final settle with overshoot
+        Disney Principles: ANTICIPATION, EXAGGERATION, DECAY
+
+        Args:
+            count: Number of shakes (typically 2)
+            amplitude: Shake angle in degrees (typically 20.0)
+            speed_ms: Time per shake cycle in milliseconds (typically 200)
+
+        Returns:
+            List of keyframes for complete shake sequence
         """
         keyframes = []
-        current_time = 0
-        current_tilt = self._current_tilt
+        t = 0
+        current_amp = amplitude * FIRST_SHAKE_EXAGGERATION
 
-        # Determine first shake direction (random for variety)
-        first_direction = self._rng.choice([-1, 1])  # FIX H-NEW-004: Thread-safe
+        # Get current position for hold DOFs
+        hold_neck_pitch = self._current_neck_pitch
+        hold_head_pitch = self._current_head_pitch
+        hold_head_roll = self._current_head_roll
 
-        # Keyframe 0: Starting position
+        # ANTICIPATION: Slight opposite turn before main shake (Disney Principle #2)
+        anticipation_angle = self._clamp_head_yaw(amplitude * ANTICIPATION_RATIO)
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=center_pan,
-            tilt=current_tilt,
-            easing='linear'
+            time_ms=t,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=anticipation_angle,
+            head_roll=hold_head_roll,
+            easing='ease_in'
         ))
 
-        # ANTICIPATION: Small movement opposite to first shake
-        anticipation_pan = self._clamp_pan(
-            center_pan - first_direction * amplitude * ANTICIPATION_RATIO
-        )
-        anticipation_time = int(speed_ms * 0.12)
-        current_time += anticipation_time
+        # Time for anticipation (10% of shake cycle)
+        t += int(speed_ms * 0.1)
 
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=anticipation_pan,
-            tilt=current_tilt,
-            easing='ease_out'
-        ))
-
-        # Shake cycles
-        direction = first_direction
-        for i in range(count * 2):  # Each cycle has 2 movements (left-right or right-left)
-            # EXAGGERATION: First shake is 110%, then decay
-            if i == 0:
-                shake_amplitude = amplitude * FIRST_SHAKE_EXAGGERATION
-            else:
-                # Decay each subsequent shake
-                shake_amplitude = amplitude * (SHAKE_DECAY_FACTOR ** (i // 2))
-
-            # TIMING: Quick snap to position
-            snap_time = int(speed_ms * 0.35)
-            current_time += snap_time
-
-            shake_pan = self._clamp_pan(center_pan + direction * shake_amplitude)
+        # SHAKE CYCLES with EXAGGERATION and DECAY (Disney Principles #10, #9)
+        for i in range(count):
+            # Left shake
+            left_angle = self._clamp_head_yaw(-current_amp)
             keyframes.append(_Keyframe(
-                time_ms=current_time,
-                pan=shake_pan,
-                tilt=current_tilt,
-                easing='ease_out'  # Quick snap with deceleration
+                time_ms=t,
+                neck_pitch=hold_neck_pitch,
+                head_pitch=hold_head_pitch,
+                head_yaw=left_angle,
+                head_roll=hold_head_roll,
+                easing='ease_in_out'
             ))
+            t += speed_ms // 2
 
-            direction *= -1  # Alternate direction
+            # Right shake
+            right_angle = self._clamp_head_yaw(current_amp)
+            keyframes.append(_Keyframe(
+                time_ms=t,
+                neck_pitch=hold_neck_pitch,
+                head_pitch=hold_head_pitch,
+                head_yaw=right_angle,
+                head_roll=hold_head_roll,
+                easing='ease_in_out'
+            ))
+            t += speed_ms // 2
 
-        # Return to center with slower movement
-        current_time += int(speed_ms * 0.5)
+            # DECAY: Reduce amplitude for next shake (Disney Principle #9)
+            current_amp *= SHAKE_DECAY_FACTOR
+
+        # RETURN TO CENTER: Smooth settle to neutral position
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=center_pan,
-            tilt=current_tilt,
-            easing='ease_in_out'
-        ))
-
-        # FOLLOW THROUGH: Small overshoot and settle
-        follow_pan = self._clamp_pan(center_pan - direction * amplitude * 0.05)
-        current_time += FOLLOW_THROUGH_SETTLE_MS // 2
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=follow_pan,
-            tilt=current_tilt,
-            easing='ease_out'
-        ))
-
-        # Final settle
-        current_time += FOLLOW_THROUGH_SETTLE_MS // 2
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=center_pan,
-            tilt=current_tilt,
+            time_ms=t,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=0.0,
+            head_roll=hold_head_roll,
             easing='ease_in_out'
         ))
 
@@ -1090,142 +1449,205 @@ class HeadController:
 
     def _build_glance_keyframes(
         self,
-        start_pan: float,
-        start_tilt: float,
-        glance_pan: float,
-        glance_tilt: float,
-        hold_ms: int
+        target_yaw: float,
+        hold_ms: int,
+        return_speed_ms: int
     ) -> List[_Keyframe]:
-        """Build keyframes for glance animation.
+        """Build keyframes for quick glance with SECONDARY ACTION.
 
-        Disney Principles:
-        - APPEAL: Natural variation through random elements
-        - SECONDARY ACTION: Tilt accompanies pan (calculated in caller)
-        - TIMING: Quick to glance, slower return
-        - ANTICIPATION: Small opposite movement
+        Disney Principles Applied:
+        --------------------------
+        - SECONDARY ACTION: head_roll follows head_yaw with 150ms lag (natural weight shift)
+        - STAGING: Primary action (head_yaw) is clear and readable
+        - TIMING: Quick snap to target, slower return
+
+        The glance movement showcases how SECONDARY ACTION creates natural motion:
+        1. head_yaw snaps to target (PRIMARY - instant attention)
+        2. head_roll follows 150ms later (SECONDARY - weight/inertia simulation)
+        3. Hold position briefly (staging for readability)
+        4. Return: head_roll leads (SECONDARY returns first)
+        5. head_yaw follows (PRIMARY completes the cycle)
+
+        This mimics how a real head moves: the rotation happens first,
+        then the weight shift (tilt) catches up due to inertia.
+
+        Args:
+            target_yaw: Target look angle in degrees (positive = right, negative = left)
+            hold_ms: How long to hold the glance position (typically 500ms)
+            return_speed_ms: Time to return to center (typically 300ms)
+
+        Returns:
+            List of keyframes for complete glance sequence
+
+        Example:
+            >>> # Quick glance right with 500ms hold
+            >>> keyframes = self._build_glance_keyframes(
+            ...     target_yaw=30.0,
+            ...     hold_ms=500,
+            ...     return_speed_ms=300
+            ... )
+            >>> # Results in: snap right → tilt catches up → hold → untilt → return center
         """
         keyframes = []
-        current_time = 0
 
-        # Calculate glance direction
-        pan_delta = glance_pan - start_pan
-        tilt_delta = glance_tilt - start_tilt
+        # Clamp target_yaw to hardware limits
+        target_yaw = self._clamp_head_yaw(target_yaw)
+
+        # FIX C-2: Preserve current neck_pitch and head_pitch during glance
+        # Previously hardcoded to 0.0, causing neck/pitch to snap to zero
+        hold_neck_pitch = self._current_neck_pitch
+        hold_head_pitch = self._current_head_pitch
+
+        # SECONDARY ACTION: Calculate head_roll (15% of yaw for natural weight shift)
+        roll_amount = target_yaw * SECONDARY_TILT_RATIO
+        roll_amount = self._clamp_head_roll(roll_amount)
 
         # Keyframe 0: Starting position
+        # This is implicit - animation engine starts from current position
+
+        # Keyframe 1: PRIMARY ACTION - Quick snap to target (head_yaw only)
+        # TIMING: Fast snap (ease_out) for alert attention behavior
+        # STAGING: Only yaw moves - makes primary action clear
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=start_pan,
-            tilt=start_tilt,
-            easing='linear'
+            time_ms=0,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=target_yaw,  # PRIMARY: Instant yaw rotation
+            head_roll=0.0,        # SECONDARY: Not moved yet (lag simulates inertia)
+            easing='ease_out'     # Fast deceleration for snappy attention
         ))
 
-        # ANTICIPATION: Small opposite movement
-        anticipation_pan = self._clamp_pan(start_pan - pan_delta * ANTICIPATION_RATIO)
-        anticipation_tilt = self._clamp_tilt(start_tilt - tilt_delta * ANTICIPATION_RATIO)
-        current_time += 50  # Quick anticipation
-
+        # Keyframe 2: SECONDARY ACTION - head_roll follows 150ms later
+        # TIMING: 150ms lag simulates natural head weight/inertia
+        # This is the "Pixar secret" - the delayed tilt makes it feel alive
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=anticipation_pan,
-            tilt=anticipation_tilt,
-            easing='ease_out'
+            time_ms=150,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=target_yaw,    # PRIMARY: Held at target
+            head_roll=roll_amount,  # SECONDARY: NOW it tilts (weight catches up)
+            easing='ease_in_out'    # Smooth secondary motion
         ))
 
-        # Quick movement to glance position (TIMING: fast)
-        current_time += 150
+        # Keyframe 3 (implicit): Hold at glance position
+        # The animation engine automatically holds the last keyframe
+        # for the specified hold_ms duration
+
+        # Keyframe 4: Return sequence - STAGING: roll leads, yaw follows
+        # This is the reverse of the initial motion for natural feel
+        t_return = 150 + hold_ms
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=glance_pan,
-            tilt=glance_tilt,
-            easing='ease_out'  # Quick snap
+            time_ms=t_return,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=target_yaw,  # PRIMARY: Still looking at target
+            head_roll=0.0,        # SECONDARY: Roll returns first (leads the return)
+            easing='ease_in'      # Accelerate into return motion
         ))
 
-        # Hold at glance position
-        current_time += hold_ms
+        # Keyframe 5: Complete return to center
+        # Both yaw and roll are now at center (0.0)
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=glance_pan,
-            tilt=glance_tilt,
-            easing='linear'  # Hold steady
-        ))
-
-        # Slower return to start (TIMING: slower return)
-        current_time += 300
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=start_pan,
-            tilt=start_tilt,
-            easing='ease_in_out'  # Smooth return
+            time_ms=t_return + return_speed_ms,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=0.0,   # PRIMARY: Now yaw returns to center
+            head_roll=0.0,  # SECONDARY: Already at center (arrived first)
+            easing='ease_in_out'  # Smooth settle to center
         ))
 
         return keyframes
 
     def _build_curious_tilt_keyframes(
         self,
-        start_pan: float,
-        start_tilt: float,
-        target_pan: float,
-        target_tilt: float,
         direction: str,
+        angle: float,
         duration_ms: int
     ) -> List[_Keyframe]:
-        """Build keyframes for curious tilt animation.
+        """Build keyframes for Pixar-style curious head tilt.
 
-        Disney Principles:
-        - APPEAL: Dog-like curious pose
-        - ANTICIPATION: Small opposite movement
-        - STAGING: Combined pan+tilt for clear pose
+        Disney Principles: STAGING (roll primary), SECONDARY ACTION, APPEAL
+
+        Args:
+            direction: 'left' or 'right' tilt direction
+            angle: Tilt angle in degrees (typically 20.0)
+            duration_ms: Total animation time (typically 400)
+
+        Returns:
+            List of keyframes for curious tilt sequence
         """
         keyframes = []
-        current_time = 0
 
-        # Calculate movement deltas
-        pan_delta = target_pan - start_pan
-        tilt_delta = target_tilt - start_tilt
+        # Direction sign
+        roll_sign = 1.0 if direction == 'right' else -1.0
 
-        # Keyframe 0: Starting position
+        # FIX C-2: Preserve current neck_pitch and head_pitch during tilt
+        hold_neck_pitch = self._current_neck_pitch
+        hold_head_pitch = self._current_head_pitch
+        hold_head_yaw = self._current_head_yaw
+
+        # FIX H-5: Ensure duration_ms is sufficient for all keyframes
+        # Minimum duration = anticipation(80) + secondary(150) + overshoot(100) + settle(50)
+        min_duration = 380
+        effective_duration = max(duration_ms, min_duration)
+
+        # Anticipation - slight tilt opposite (10% of amplitude, 80ms)
+        anticipation = angle * ANTICIPATION_RATIO * (-roll_sign)
+        anticipation = self._clamp_head_roll(anticipation)
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=start_pan,
-            tilt=start_tilt,
-            easing='linear'
+            time_ms=0,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=hold_head_yaw,
+            head_roll=anticipation,
+            easing='ease_in'
         ))
 
-        # ANTICIPATION: Small opposite movement
-        anticipation_time = int(duration_ms * 0.15)
-        anticipation_pan = self._clamp_pan(start_pan - pan_delta * ANTICIPATION_RATIO)
-        anticipation_tilt = self._clamp_tilt(start_tilt - tilt_delta * ANTICIPATION_RATIO)
-        current_time += anticipation_time
-
+        # Main tilt - PRIMARY ACTION (head_roll)
+        t_main = 80
+        main_roll = self._clamp_head_roll(angle * roll_sign)
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=anticipation_pan,
-            tilt=anticipation_tilt,
-            easing='ease_out'
-        ))
-
-        # Main tilt movement with slight overshoot
-        overshoot_pan = self._clamp_pan(target_pan + pan_delta * FOLLOW_THROUGH_OVERSHOOT)
-        overshoot_tilt = self._clamp_tilt(target_tilt + tilt_delta * FOLLOW_THROUGH_OVERSHOOT)
-        main_time = int(duration_ms * 0.7)
-        current_time += main_time
-
-        keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=overshoot_pan,
-            tilt=overshoot_tilt,
+            time_ms=t_main,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=hold_head_yaw,  # Yaw hasn't moved yet
+            head_roll=main_roll,
             easing='ease_in_out'
         ))
 
-        # Settle to final position
-        settle_time = int(duration_ms * 0.15)
-        current_time += settle_time
-
+        # SECONDARY ACTION - head_yaw follows 150ms later
+        yaw_support = (angle * roll_sign) * 0.3  # 30% of roll angle
+        yaw_support = self._clamp_head_yaw(yaw_support)
+        t_secondary = t_main + 150
         keyframes.append(_Keyframe(
-            time_ms=current_time,
-            pan=target_pan,
-            tilt=target_tilt,
+            time_ms=t_secondary,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=yaw_support,  # NOW yaw engages
+            head_roll=main_roll,
+            easing='ease_in_out'
+        ))
+
+        # Settle with slight overshoot (APPEAL)
+        overshoot = self._clamp_head_roll((angle * roll_sign) * 1.05)
+        t_overshoot = t_secondary + 100
+        keyframes.append(_Keyframe(
+            time_ms=t_overshoot,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=yaw_support,
+            head_roll=overshoot,
             easing='ease_out'
+        ))
+
+        # Final settle
+        keyframes.append(_Keyframe(
+            time_ms=effective_duration,
+            neck_pitch=hold_neck_pitch,
+            head_pitch=hold_head_pitch,
+            head_yaw=yaw_support,
+            head_roll=main_roll,
+            easing='ease_in_out'
         ))
 
         return keyframes
@@ -1238,17 +1660,21 @@ class HeadController:
         self,
         keyframes: List[_Keyframe],
         movement_type: HeadMovementType,
-        target_pan: float,
-        target_tilt: float
+        target_neck_pitch: float,
+        target_head_pitch: float,
+        target_head_yaw: float,
+        target_head_roll: float
     ) -> None:
-        """Start animation with pre-computed keyframes.
+        """Start animation with pre-computed 4-DOF keyframes.
 
         Must be called with lock held.
         """
         self._keyframes = keyframes
         self._movement_type = movement_type
-        self._target_pan = target_pan
-        self._target_tilt = target_tilt
+        self._target_neck_pitch = target_neck_pitch
+        self._target_head_pitch = target_head_pitch
+        self._target_head_yaw = target_head_yaw
+        self._target_head_roll = target_head_roll
         self._is_moving = True
 
         # Calculate total duration
@@ -1257,25 +1683,35 @@ class HeadController:
         else:
             self._animation_duration_ms = 0
 
+        # FIX C-1: Increment generation to invalidate any zombie threads
+        self._animation_generation += 1
+
         # Clear stop flag and start animation thread
         self._stop_animation.clear()
         self._animation_complete.clear()  # FIX H-005: Mark animation as in-progress
         self._animation_start_time = time.monotonic()
 
+        # Pass current generation to animation thread
+        current_gen = self._animation_generation
         self._animation_thread = threading.Thread(
             target=self._animation_loop,
+            args=(current_gen,),
             daemon=True
         )
         self._animation_thread.start()
 
-    def _animation_loop(self) -> None:
+    def _animation_loop(self, generation: int) -> None:
         """Main animation loop running at 50Hz.
 
         Runs in separate thread, interpolates between keyframes.
+        Exits immediately if generation counter has been incremented
+        (meaning a new animation has started).
         """
         next_frame_time = time.monotonic()
 
-        while not self._stop_animation.is_set() and not self._emergency_stopped.is_set():
+        while (not self._stop_animation.is_set()
+               and not self._emergency_stopped.is_set()
+               and generation == self._animation_generation):
             # Calculate elapsed time
             elapsed_ms = int((time.monotonic() - self._animation_start_time) * 1000)
 
@@ -1284,16 +1720,16 @@ class HeadController:
                 self._complete_animation()
                 return
 
-            # Interpolate current position
-            pan, tilt = self._interpolate_position(elapsed_ms)
-
-            # Update servos
+            # FIX H-3: Interpolate under lock to prevent reading stale/cleared keyframes
             with self._lock:
                 if not self._is_moving:
                     return
-                self._move_servos_to(pan, tilt)
-                self._current_pan = pan
-                self._current_tilt = tilt
+                neck_pitch, head_pitch, head_yaw, head_roll = self._interpolate_position(elapsed_ms)
+                self._move_servos_to(neck_pitch, head_pitch, head_yaw, head_roll)
+                self._current_neck_pitch = neck_pitch
+                self._current_head_pitch = head_pitch
+                self._current_head_yaw = head_yaw
+                self._current_head_roll = head_roll
 
             # Frame timing (50Hz)
             next_frame_time += FRAME_TIME_S
@@ -1304,13 +1740,21 @@ class HeadController:
                 # Frame overrun - reset timing
                 next_frame_time = time.monotonic()
 
-    def _interpolate_position(self, elapsed_ms: int) -> Tuple[float, float]:
-        """Interpolate position at given time using keyframes.
+    def _interpolate_position(self, elapsed_ms: int) -> Tuple[float, float, float, float]:
+        """Interpolate 4-DOF position at given time using keyframes.
 
         Uses pose-to-pose animation with easing between keyframes.
+
+        Returns:
+            Tuple of (neck_pitch, head_pitch, head_yaw, head_roll)
         """
         if not self._keyframes:
-            return (self._current_pan, self._current_tilt)
+            return (
+                self._current_neck_pitch,
+                self._current_head_pitch,
+                self._current_head_yaw,
+                self._current_head_roll
+            )
 
         # Find surrounding keyframes
         prev_kf = self._keyframes[0]
@@ -1333,37 +1777,51 @@ class HeadController:
         # Apply easing
         eased_t = ease(t, next_kf.easing)
 
-        # Interpolate pan and tilt
-        pan = prev_kf.pan + (next_kf.pan - prev_kf.pan) * eased_t
-        tilt = prev_kf.tilt + (next_kf.tilt - prev_kf.tilt) * eased_t
+        # Interpolate all 4 DOF
+        neck_pitch = prev_kf.neck_pitch + (next_kf.neck_pitch - prev_kf.neck_pitch) * eased_t
+        head_pitch = prev_kf.head_pitch + (next_kf.head_pitch - prev_kf.head_pitch) * eased_t
+        head_yaw = prev_kf.head_yaw + (next_kf.head_yaw - prev_kf.head_yaw) * eased_t
+        head_roll = prev_kf.head_roll + (next_kf.head_roll - prev_kf.head_roll) * eased_t
 
-        return (pan, tilt)
+        return (neck_pitch, head_pitch, head_yaw, head_roll)
 
     def _complete_animation(self) -> None:
-        """Complete the current animation."""
+        """Complete the current 4-DOF animation."""
         with self._lock:
             # Move to final position
             if self._keyframes:
                 final_kf = self._keyframes[-1]
-                self._move_servos_to(final_kf.pan, final_kf.tilt)
-                self._current_pan = final_kf.pan
-                self._current_tilt = final_kf.tilt
+                self._move_servos_to(
+                    final_kf.neck_pitch,
+                    final_kf.head_pitch,
+                    final_kf.head_yaw,
+                    final_kf.head_roll
+                )
+                self._current_neck_pitch = final_kf.neck_pitch
+                self._current_head_pitch = final_kf.head_pitch
+                self._current_head_yaw = final_kf.head_yaw
+                self._current_head_roll = final_kf.head_roll
 
             # Clear animation state
             movement_type = self._movement_type
             self._is_moving = False
             self._movement_type = None
-            self._target_pan = None
-            self._target_tilt = None
+            self._target_neck_pitch = None
+            self._target_head_pitch = None
+            self._target_head_yaw = None
+            self._target_head_roll = None
             self._keyframes.clear()
 
-            # Fire callback if set
+            # Fire callback if set (class-level callback)
             callback = self._on_movement_complete
+            # Get per-call callback (only for non-blocking calls without wait_for_completion)
+            per_call_callback = self._pending_on_complete
+            self._pending_on_complete = None  # Clear after retrieving
 
         # FIX H-005: Signal animation complete for wait_for_completion()
         self._animation_complete.set()
 
-        # Call callback outside lock to prevent deadlocks
+        # Call class-level callback outside lock to prevent deadlocks
         if callback is not None and movement_type is not None:
             try:
                 callback(movement_type)
@@ -1371,16 +1829,25 @@ class HeadController:
                 # FIX H-006: Log callback error for debugging instead of silent swallow
                 _logger.warning(f"Movement callback error: {e}", exc_info=True)
 
+        # Call per-call callback with success=True (animation completed normally)
+        if per_call_callback is not None:
+            try:
+                per_call_callback(True)
+            except Exception as e:
+                _logger.warning(f"on_complete callback error: {e}", exc_info=True)
+
     def _cancel_animation_internal(self) -> None:
-        """Cancel current animation. Must be called with lock held."""
+        """Cancel current 4-DOF animation. Must be called with lock held."""
         if self._animation_thread is not None and self._animation_thread.is_alive():
             self._stop_animation.set()
             # Don't join here - we're holding the lock
 
         self._is_moving = False
         self._movement_type = None
-        self._target_pan = None
-        self._target_tilt = None
+        self._target_neck_pitch = None
+        self._target_head_pitch = None
+        self._target_head_yaw = None
+        self._target_head_roll = None
         self._keyframes.clear()
 
         # FIX H-001/H-005: Signal completion on cancel too
@@ -1390,8 +1857,14 @@ class HeadController:
     # PRIVATE METHODS - Servo Control
     # =========================================================================
 
-    def _move_servos_to(self, pan: float, tilt: float) -> None:
-        """Move servos to specified position.
+    def _move_servos_to(
+        self,
+        neck_pitch: float,
+        head_pitch: float,
+        head_yaw: float,
+        head_roll: float
+    ) -> None:
+        """Move all 4 servos to specified 4-DOF position.
 
         Converts logical angles to servo angles and commands hardware.
         """
@@ -1400,41 +1873,79 @@ class HeadController:
 
         # Convert logical angle to servo angle
         # Formula: servo_angle = 90 + (logical_angle * direction)
-        pan_direction = -1.0 if self._config.pan_inverted else 1.0
-        tilt_direction = -1.0 if self._config.tilt_inverted else 1.0
+        neck_pitch_direction = -1.0 if self._config.neck_pitch_inverted else 1.0
+        head_pitch_direction = -1.0 if self._config.head_pitch_inverted else 1.0
+        head_yaw_direction = -1.0 if self._config.head_yaw_inverted else 1.0
+        head_roll_direction = -1.0 if self._config.head_roll_inverted else 1.0
 
-        pan_servo_angle = 90.0 + (pan * pan_direction)
-        tilt_servo_angle = 90.0 + (tilt * tilt_direction)
+        neck_pitch_servo = 90.0 + (neck_pitch * neck_pitch_direction)
+        head_pitch_servo = 90.0 + (head_pitch * head_pitch_direction)
+        head_yaw_servo = 90.0 + (head_yaw * head_yaw_direction)
+        head_roll_servo = 90.0 + (head_roll * head_roll_direction)
 
         # Clamp to servo range (0-180)
-        pan_servo_angle = max(0.0, min(180.0, pan_servo_angle))
-        tilt_servo_angle = max(0.0, min(180.0, tilt_servo_angle))
+        neck_pitch_servo = max(0.0, min(180.0, neck_pitch_servo))
+        head_pitch_servo = max(0.0, min(180.0, head_pitch_servo))
+        head_yaw_servo = max(0.0, min(180.0, head_yaw_servo))
+        head_roll_servo = max(0.0, min(180.0, head_roll_servo))
 
-        # Command servos
+        # Command all 4 servos
         try:
-            self._driver.set_servo_angle(self._config.pan_channel, pan_servo_angle)
-            self._driver.set_servo_angle(self._config.tilt_channel, tilt_servo_angle)
+            self._driver.set_servo_angle(self._config.neck_pitch_channel, neck_pitch_servo)
+            self._driver.set_servo_angle(self._config.head_pitch_channel, head_pitch_servo)
+            self._driver.set_servo_angle(self._config.head_yaw_channel, head_yaw_servo)
+            self._driver.set_servo_angle(self._config.head_roll_channel, head_roll_servo)
         except Exception as e:
             # FIX H-005: Log error for debugging instead of silent swallow
             _logger.error(f"Servo command failed: {e}", exc_info=True)
 
-    def _clamp_pan(self, pan: float) -> float:
-        """Clamp pan angle to configured limits.
+    def _clamp_neck_pitch(self, neck_pitch: float) -> float:
+        """Clamp neck pitch angle to configured limits.
 
         Handles NaN and Infinity by returning center position (safe default).
         """
-        if math.isnan(pan) or math.isinf(pan):
-            return self._config.limits.pan_center
-        return max(self._config.limits.pan_min, min(self._config.limits.pan_max, pan))
+        if math.isnan(neck_pitch) or math.isinf(neck_pitch):
+            return self._config.limits.neck_pitch_center
+        return max(
+            self._config.limits.neck_pitch_min,
+            min(self._config.limits.neck_pitch_max, neck_pitch)
+        )
 
-    def _clamp_tilt(self, tilt: float) -> float:
-        """Clamp tilt angle to configured limits.
+    def _clamp_head_pitch(self, head_pitch: float) -> float:
+        """Clamp head pitch angle to configured limits.
 
         Handles NaN and Infinity by returning center position (safe default).
         """
-        if math.isnan(tilt) or math.isinf(tilt):
-            return self._config.limits.tilt_center
-        return max(self._config.limits.tilt_min, min(self._config.limits.tilt_max, tilt))
+        if math.isnan(head_pitch) or math.isinf(head_pitch):
+            return self._config.limits.head_pitch_center
+        return max(
+            self._config.limits.head_pitch_min,
+            min(self._config.limits.head_pitch_max, head_pitch)
+        )
+
+    def _clamp_head_yaw(self, head_yaw: float) -> float:
+        """Clamp head yaw angle to configured limits.
+
+        Handles NaN and Infinity by returning center position (safe default).
+        """
+        if math.isnan(head_yaw) or math.isinf(head_yaw):
+            return self._config.limits.head_yaw_center
+        return max(
+            self._config.limits.head_yaw_min,
+            min(self._config.limits.head_yaw_max, head_yaw)
+        )
+
+    def _clamp_head_roll(self, head_roll: float) -> float:
+        """Clamp head roll angle to configured limits.
+
+        Handles NaN and Infinity by returning center position (safe default).
+        """
+        if math.isnan(head_roll) or math.isinf(head_roll):
+            return self._config.limits.head_roll_center
+        return max(
+            self._config.limits.head_roll_min,
+            min(self._config.limits.head_roll_max, head_roll)
+        )
 
     # =========================================================================
     # PROPERTIES

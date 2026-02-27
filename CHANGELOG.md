@@ -1,8 +1,649 @@
 # OpenDuck Mini V3 - Development Changelog
 
 **Project Start:** 15 January 2026
-**Current Week:** Week 01 (15-21 Jan) - Hardware Testing & Foundation
+**Current Week:** Week 07 (24 Feb - 2 Mar) - Hardware Integration & Assembly
 **Target Completion:** Week 01 = 55-60%, Full Project = 8 weeks
+
+---
+
+## Week 07: Hardware Integration & Assembly (24 Feb - 2 Mar 2026)
+
+### Day 44 - Thursday, 27 February 2026
+
+**Focus:** Hardware Component Testing - First Physical Integration Session
+**Note:** Returned from exam break (~5 weeks). All components received including servos, AI camera, BNO085, batteries, FE-URT-1 controller.
+
+---
+
+#### Hardware Inventory Confirmed
+- ✅ Raspberry Pi 4 (available, tested)
+- ✅ AI Camera IMX500 (received)
+- ✅ STS3215 Servo ×16 (top quality, legs+arms, received)
+- ✅ MG90S Servo (head, received)
+- ✅ FE-URT-1 Controller (received)
+- ✅ BNO085 IMU (received)
+- ✅ 18650 Batteries (received, saldatura domani)
+- ✅ PCA9685 ×2 (available)
+- ✅ INMP441 Microphone (available)
+- ✅ Breadboard + jumper wires (available)
+
+---
+
+#### OS Reinstallation
+- **Issue:** WiFi kept dropping after power cycling during hardware tests
+- **Root Cause:** Shutting down Pi by unplugging USB-C (without `sudo shutdown`) likely corrupted WiFi config
+- **Resolution:** Fresh install via Raspberry Pi Imager
+  - OS: Raspberry Pi OS 64-bit (Bookworm)
+  - Hostname: `openduck`
+  - User: `pi` / Password configured
+  - WiFi: Pre-configured via Imager advanced settings
+  - SSH: Enabled with key-based auth
+- **Prevention:** Always use `sudo shutdown now` before unplugging
+- Status: ✅ COMPLETE
+
+#### SSH Key-Based Authentication
+- Generated ED25519 key pair on Windows PC
+- Copied public key to Pi `~/.ssh/authorized_keys`
+- Claude Code can now SSH directly to Pi for remote commands
+- Status: ✅ COMPLETE
+
+#### I2C + Camera Enabled
+- Enabled I2C via `raspi-config nonint do_i2c 0`
+- Enabled Camera via `raspi-config nonint do_camera 0`
+- Status: ✅ COMPLETE
+
+---
+
+#### Test 1: PCA9685 Servo Driver - I2C Detection
+- **Result:** ✅ DETECTED at address `0x40`
+- Also shows `0x70` (PCA9685 all-call address, normal)
+- Installed `adafruit-circuitpython-pca9685` and `adafruit-circuitpython-servokit`
+- Command: `sudo i2cdetect -y 1`
+- Status: ✅ COMPLETE
+
+#### Test 2: MG90S Servo via PCA9685
+- **Issue 1:** Servo not moving - V+ was connected to pin header instead of screw terminals
+  - **Fix:** Moved V+ power to PCA9685 screw terminals (needed for servo power rail)
+- **Issue 2:** Servo connector was inserted backwards (yellow/brown swapped)
+  - **Fix:** Correct orientation: Brown=GND (outer edge), Red=V+, Yellow=SIG (inner toward chip)
+- **Issue 3:** After power cycling, Pi WiFi dropped. Could not complete servo sweep test.
+- Software test sent 0°→90°→180°→90° sweep command successfully
+- Status: ⏳ NEEDS RETEST (hardware verified, software ready, connection interrupted)
+
+**Important Notes for Tomorrow:**
+- PCA9685 servo power (V+) must go to **screw terminals**, NOT pin header
+- MG90S connector: **Brown=GND, Red=V+, Yellow=Signal** (outer to inner)
+- Use Pi Pin 2 (5V) for V+ screw terminal (only for 1-2 servos, use UBEC for more)
+
+#### Test 3: AI Camera IMX500
+- **Detection:** ✅ `rpicam-hello --list-cameras` shows `imx500 [4056x3040 10-bit RGGB]`
+- **Modes:** 2028x1520 @ 30fps, 4056x3040 @ 10fps
+- **Photo Test:** ✅ Captured test photo via `rpicam-still` - good quality even in low light
+- **Live Stream:** ✅ Created MJPEG streaming server, viewable in browser
+- Status: ✅ COMPLETE - Camera fully functional
+
+#### Live Camera Stream Server
+- **File:** `camera_stream.py` (project root, also deployed to Pi `/tmp/camera_stream.py`)
+- **Purpose:** MJPEG streaming server for browser-based live camera view
+- **Tech:** Python3, picamera2, http.server, threading
+- **Usage:** `python3 camera_stream.py` on Pi, then open `http://openduck.local:8080` in browser
+- **Resolution:** 1024x768 @ ~30fps
+- **Features:**
+  - Dark themed web UI ("OpenDuck Mini - Camera Feed")
+  - MJPEG stream endpoint at `/stream`
+  - Thread-safe frame capture
+- **Note:** Useful for debugging vision/positioning when camera is mounted in head
+- Status: ✅ COMPLETE
+
+#### Test 4: BNO085 IMU
+- **Issue:** Pin headers not soldered to BNO085 breakout board
+- Pressing pins manually did not establish reliable contact
+- **Resolution:** Solder pins tomorrow (flussante arriving tomorrow)
+- Status: ⏳ BLOCKED - needs soldering
+
+---
+
+#### Breadboard Wiring Reference (for tomorrow)
+
+**PCA9685 → Pi (direct femmina-femmina):**
+| PCA9685 | Pi Pin |
+|---------|--------|
+| VCC | Pin 1 (3.3V) |
+| SDA | Pin 3 |
+| SCL | Pin 5 |
+| GND (header) | Pin 9 |
+| V+ (screw terminal) | Pin 2 (5V) |
+| GND (screw terminal) | Pin 6 |
+
+**BNO085 → Breadboard → Pi (after soldering):**
+| BNO085 | Breadboard | Pi Pin |
+|--------|-----------|--------|
+| VIN | riga (+) | via Pin 1 (3.3V) |
+| GND | riga (-) | via Pin 6 |
+| SCL | direct | Pin 5 (shared with PCA9685) |
+| SDA | direct | Pin 3 (shared with PCA9685) |
+
+---
+
+#### Software: Head Controller Hostile Review & Bug Fixes
+- **Hostile Review:** Ran comprehensive code review of `src/control/head_controller.py` (~1900 lines)
+- Found 4 CRITICAL + 3 HIGH issues. All 7 fixed and verified.
+
+**CRITICAL Fixes (all verified, 78 tests passing):**
+- **C-1:** Thread race condition - Added generation counter to prevent zombie animation threads from writing stale servo positions
+- **C-2:** Glance/tilt hardcoded 0.0 positions - `_build_glance_keyframes` and `_build_curious_tilt_keyframes` now preserve current neck_pitch/head_pitch instead of zeroing them
+- **C-3:** Nod timing math error - Moved anticipation calculation inside per-cycle loop; multi-nod was ~10% shorter than requested
+- **C-4:** Emergency stop power-off - Changed from `disable_channel()` (servos go limp/drop) to `_move_servos_to()` (hold position). Added separate `power_off()` method for intentional PWM cut.
+
+**HIGH Fixes:**
+- **H-2:** Double callback fire - In blocking mode, `_complete_animation()` and `move_to()` could both fire the `on_complete` callback. Fixed by clearing `_pending_on_complete` before blocking wait.
+- **H-3:** Interpolation without lock - `_interpolate_position()` was reading `_keyframes` and position fields outside the lock, risking IndexError or stale data on concurrent modification. Moved interpolation inside the lock.
+- **H-4:** Inconsistent error handling - `shake()`, `random_glance()`, `tilt_curious()` returned `False` on emergency stop while `nod()` raised `RuntimeError`. All gesture methods now consistently raise `RuntimeError`.
+- **H-7:** Removed 8 stale `@pytest.mark.xfail` markers for features that are now fully implemented (callbacks, NaN handling, timeout).
+
+**Files Modified:**
+- `src/control/head_controller.py` - All 7 fixes applied
+- `tests/test_control/test_head_controller.py` - Updated test for C-2 fix, removed 8 xfail markers
+
+**Test Results:** 78 passed, 0 failed, 0 xpassed (clean suite)
+- Status: ✅ COMPLETE
+
+---
+
+#### Metrics Summary Day 44
+- Components tested: 2/7 (PCA9685, AI Camera)
+- Components blocked: 1 (BNO085 - needs soldering)
+- Components partial: 1 (MG90S - wiring issues identified and documented)
+- Components not tested: 3 (FE-URT-1, STS3215, INMP441)
+- Files created: 1 (`camera_stream.py` - 68 lines)
+- Files modified: 2 (`head_controller.py`, `test_head_controller.py`)
+- Bugs fixed: 4 CRITICAL + 3 HIGH + 1 cleanup (H-7)
+- OS reinstalled: 1x (WiFi fix)
+- Lessons learned: 3 (screw terminals for V+, servo connector orientation, always shutdown properly)
+
+---
+
+#### Plan for Day 45 (28 February 2026)
+1. **Solder:** BNO085 pin headers + 18650 battery pack
+2. **Retest:** PCA9685 + MG90S servo (with correct screw terminal + connector orientation)
+3. **Test:** BNO085 IMU via I2C (should show 0x4a)
+4. **Test:** FE-URT-1 + 1× STS3215 bus servo
+5. **Test:** INMP441 microphone (driver already written)
+6. **Goal:** All 7 components validated by end of day
+7. **WiFi fix:** Run `sudo iw wlan0 set power_save off` to prevent WiFi drops
+
+---
+
+## Week 03: CAD Finalization & Manufacturing Prep (28 Jan - 3 Feb 2026)
+
+### Day 14 - Tuesday, 28 January 2026
+
+**Focus:** Head Assembly V2 Redesign + BDX Head V3 Design + Park Head Adaptation
+
+---
+
+#### Park Head Adaptation (Session 5 - Late)
+
+**Protocol:** IAO-v2-DYNAMIC (Industrial Agentic Orchestration)
+**Target:** Adapt Justin's Park Head Mod (BD-X Style) for OpenDuck V3
+**Source:** `Open_Duck_Mini/print/mods/Justins_Park_Head_Mod/`
+
+**Agent 1 - Mesh Analyst:**
+- Extracted 13 3MF files from Justin's Park Head Mod
+- Analyzed mesh dimensions using trimesh library
+- Scaled all meshes 1.3x (30% larger)
+- Exported 13 scaled STL files
+
+**Mesh Analysis Results (Scaled 1.3x):**
+| Part | Original Size (mm) | Scaled Size (mm) |
+|------|-------------------|------------------|
+| HeadTop | 212.7×197.3×59.4 | 276.4×256.5×77.2 |
+| FacePlateCurve | 18.9×193.2×57.0 | 24.6×251.2×74.1 |
+| Parklike_Left_Eye | 9.4×40.0×39.8 | 12.2×52.0×51.7 |
+| Parklike_Right_Eye | 9.4×44.0×43.9 | 12.2×57.2×57.1 |
+| MilkyLens | 0.4×30.0×30.0 | 0.5×39.0×39.0 |
+
+**Agent 2 - Component Integrator:**
+- Verified LED ring fit: 52mm/57mm pockets accommodate 44mm LED rings
+- Designed camera mount pocket (25×24mm)
+- Added microphone ports with acoustic paths
+- Verified speaker mount (40mm)
+- Designed neck interface (36mm OD, 22mm passthrough)
+
+**Agent 3 - FDM Optimizer:**
+- Applied all Batch 1 failure fixes:
+  - Extrusion multiplier: 1.03
+  - Top layers: 8
+  - Support threshold: 35°
+  - Z-hop: 0.2mm
+  - Bed temp: 68°C
+- Added 45° chamfers on bed-contact edges
+- Ensured 2.5mm minimum wall thickness
+- M3 heat-set insert holes: 4.2mm × 5.5mm
+
+**Agent 4 - Assembly Specialist:**
+
+**Files Created:**
+
+1. `cad_v3/park_head_adapted/mesh_analyzer.py` (~150 lines)
+   - Extracts mesh from 3MF files
+   - Analyzes dimensions and volumes
+   - Exports scaled STL files
+   - Status: ✅ COMPLETE
+
+2. `cad_v3/park_head_adapted/mesh_analysis_report.json`
+   - Complete dimensional analysis of all 13 parts
+   - Original and scaled measurements
+   - Status: ✅ COMPLETE
+
+3. `cad_v3/park_head_adapted/*_scaled_1.3x.stl` (13 files)
+   - All Park Head parts scaled 1.3x
+   - Centered on origin
+   - Status: ✅ COMPLETE
+
+4. `cad_v3/park_head_adapted/park_head_adapted.scad` (~500 lines)
+   - OpenSCAD parametric design with component mounts
+   - LED ring mounts (44mm with 4x heat-set inserts each)
+   - Camera mount bracket (25×24mm, 4 corners)
+   - Microphone mounts (acoustic ports)
+   - Speaker mount (40mm, angled rear-facing)
+   - Neck interface (36mm OD, 22mm passthrough)
+   - All FDM optimizations applied
+   - Status: ✅ COMPLETE
+
+5. `cad_v3/park_head_adapted/qidi_xmax3_PARK_HEAD_SILK_PLA.ini` (~350 lines)
+   - Optimized slicer profile for SUNLU Silk PLA Plus Triple Color
+   - All Batch 1 fixes incorporated
+   - Support threshold: 35°
+   - 4 perimeters (2.5mm wall)
+   - 8 top layers
+   - Status: ✅ COMPLETE
+
+6. `cad_v3/park_head_adapted/ASSEMBLY_INSTRUCTIONS.md` (~300 lines)
+   - Complete assembly guide
+   - Bill of materials
+   - Wiring diagram
+   - Validation checklist
+   - Status: ✅ COMPLETE
+
+**Validation Checklist:**
+- [✓] All parts scaled 1.3×
+- [✓] LED rings fit in eye housings (52mm > 44mm requirement)
+- [✓] Camera mount accommodates IMX500 (25×24mm)
+- [✓] Mic ports have acoustic path
+- [✓] No overhangs >45° without support
+- [✓] Wall thickness ≥2mm everywhere
+- [✓] M3 heat-set holes correct size (4.2mm × 5.5mm)
+- [✓] Neck interface matches existing design (22mm passthrough)
+
+**Metrics Summary:**
+- Total files created: 18 (13 STL + 4 documentation + 1 script)
+- Total code: ~1,000 lines (Python + OpenSCAD)
+- Agent count: 4 (Mesh Analyst, Component Integrator, FDM Optimizer, Assembly Specialist)
+- Estimated print time: 12-14 hours total (both shells)
+- Estimated filament: 170g total
+
+---
+
+#### BDX-Style Rectangular Head Design (Session 4)
+
+**Protocol:** IAO-v2-DYNAMIC (Industrial Agentic Orchestration)
+**Target:** Design complete BDX-style rectangular head from scratch
+**Style:** Disney BD-X / Boston Dynamics Spot inspired angular aesthetic
+
+**Research Phase Completed:**
+- Analyzed existing V2 spherical head design patterns
+- Reviewed Justin's Park Head Mod for BDX aesthetic reference
+- Extracted component dimensions from dimensions.scad
+- Applied all print failure analysis lessons (TIER 1+2 fixes)
+
+**Files Created:**
+
+1. `cad_v3/head_bdx_v3.scad` - BDX Front Shell (23.2 KB, ~600 lines)
+   - Rectangular/angular chamfered base shape (110×90×85mm)
+   - 12mm corner chamfers for BDX aesthetic
+   - 2× WS2812B LED ring mounts (Ø44mm) with heat-set inserts
+   - AI Camera IMX500 central mount (25×24mm)
+   - 2× INMP441 microphone side mounts
+   - Equator flange with tongue feature (8mm width, 12× M3 bolts)
+   - Internal structural ribs (22mm spacing)
+   - FDM-optimized: No overhangs >45°, chamfered edges
+   - Status: ✅ COMPLETE
+
+2. `cad_v3/head_bdx_v3_internal.scad` - Internal Structure (22.1 KB, ~550 lines)
+   - 4-DOF servo frame for MG90S (yaw, pitch, roll, spare)
+   - Self-supporting servo pockets with 45° internal chamfers
+   - PCB mounting standoffs (M3 heat-set inserts)
+   - Cable management channels (6mm U-channels)
+   - Speaker bracket (Ø40mm, rear-facing)
+   - Rear shell with groove joint (mates with front tongue)
+   - Access panel with retention lip
+   - Neck interface (36mm OD, 22mm cable passthrough)
+   - Status: ✅ COMPLETE
+
+3. `cad_v3/head_bdx_v3_assembly.scad` - Complete Assembly (15.8 KB, ~450 lines)
+   - Full assembly visualization with all components
+   - Exploded view capability (EXPLODE_DISTANCE parameter)
+   - Cross-section view module
+   - Print bed layout for Qidi X-Max 3
+   - Dimensional annotation module
+   - Complete assembly instructions
+   - Validation checklist
+   - Status: ✅ COMPLETE
+
+4. `cad_v3/dimensions.scad` - Updated with HEAD_BDX_* parameters
+   - HEAD_BDX_WIDTH = 110mm
+   - HEAD_BDX_DEPTH = 90mm
+   - HEAD_BDX_HEIGHT = 85mm
+   - HEAD_BDX_CORNER_CHAMFER = 12mm
+   - HEAD_BDX_EYE_SPACING = 50mm
+   - HEAD_BDX_CABLE_DIA = 22mm (critical)
+   - HEAD_BDX_BOLT_COUNT = 12
+   - Full BDX parameter section added (~50 new lines)
+   - Verification module updated
+   - Status: ✅ COMPLETE
+
+**Design Specifications:**
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Overall Size | 110×90×85mm | 30% larger than V2 sphere |
+| Corner Chamfer | 12mm | BDX angular aesthetic |
+| Wall Thickness | 2.5mm outer, 3.0mm structural | From failure analysis |
+| Eye Spacing | 50mm | 45% of width |
+| Cable Passthrough | 22mm | Critical requirement met |
+| Equator Bolts | 12× M3 | Reinforced joint |
+| Tongue-Groove Joint | 2mm/2.3mm | Interlocking feature |
+| Servo Count | 4× MG90S | Full 4-DOF articulation |
+
+**FDM Optimization Applied:**
+- [✓] No overhangs >45° without support
+- [✓] 45° chamfers on all bed-contact edges
+- [✓] Self-supporting servo pockets (internal 45° chamfers)
+- [✓] Conical PCB standoffs (3° taper)
+- [✓] R2mm fillets at internal corners
+- [✓] Support drain holes not needed (rectangular design)
+- [✓] Minimum 2mm wall thickness everywhere
+
+**Component Integration Verified:**
+- [✓] 2× WS2812B 16-LED rings (Ø44mm OD, Ø30mm ID)
+- [✓] 1× Raspberry Pi AI Camera IMX500 (25×24mm)
+- [✓] 2× INMP441 MEMS microphones (15×13mm)
+- [✓] 1× Speaker mount (Ø40mm, 20mm depth)
+- [✓] 4× MG90S servo pockets
+- [✓] 22mm cable passthrough (meets requirement)
+
+**Metrics Summary:**
+- Total new code: ~1,600 lines OpenSCAD
+- Files created: 3 new .scad files
+- Files modified: 1 (dimensions.scad)
+- New parameters: ~30 HEAD_BDX_* variables
+- Estimated print time: 8-12 hours total
+- Estimated filament: 120-150g total
+
+---
+
+**Focus (Earlier):** Head Assembly V2 Redesign - Fix layer adhesion and structural issues
+
+#### IAO-v2-DYNAMIC Protocol Execution
+- [Session Start] Full autonomous redesign of V3 head assembly
+  - Protocol: IAO-v2-DYNAMIC (Industrial Agentic Orchestration)
+  - Target: Fix layer adhesion, enlarge cable passthrough, strengthen structure
+  - Scope: HEAD ONLY (no body/leg/arm modifications)
+
+#### Phase 1: Research Council Analysis
+- Analyzed 5 critical errors from CAD_V3_CRITICAL_EVALUATION.md
+- User-reported issue: Layer adhesion failure on original head print
+- Root cause: Thin walls (1.5mm), small flange (4mm), no interlocking joint
+- V1 cable passthrough only 12mm (required 22mm for all cables)
+
+#### Phase 2: CAD Redesign Execution
+
+**Files Created (V2 Versions):**
+1. `head_shell_front_v2.scad` - Reinforced front hemisphere
+   - Wall thickness: 1.5mm → 2.0mm (cosmetic), 3.0mm (structural)
+   - Equator flange: 4mm → 8mm width
+   - Bolt count: 8 → 12 M3 bolts
+   - NEW: Tongue-and-groove interlocking joint (2mm tongue, 2.3mm groove)
+   - NEW: Alignment pins (2× Ø3mm at 45°/225°)
+   - NEW: Heat-set insert provisions for LED mount
+   - Print orientation: Equator-down for strongest joint
+   - Status: ✅ COMPLETE (400 lines)
+
+2. `head_shell_rear_v2.scad` - Reinforced rear with 22mm cable exit
+   - Cable exit: 15mm → 22mm diameter (CRITICAL FIX)
+   - Servo mount disc: 35mm → 40mm diameter
+   - NEW: 8× diagonal gussets from servo mount to shell
+   - NEW: Strain relief collar at cable exit
+   - NEW: Groove feature matching front tongue
+   - Heat-set inserts: 4× access panel, 6× servo mount
+   - Status: ✅ COMPLETE (350 lines)
+
+3. `neck_interface_v2.scad` - Enlarged cable passthrough
+   - Cable passthrough: 12mm → 22mm diameter (CRITICAL FIX)
+   - Neck tube OD: 30mm → 36mm (maintains wall thickness)
+   - Bearing race: 25mm → 32mm diameter
+   - NEW: 8× gusset ribs on torso mount plate
+   - NEW: Strain relief at both ends of neck tube
+   - NEW: PTFE washer provisions at bearing surfaces
+   - Cable channels: 3mm → 4mm width
+   - Status: ✅ COMPLETE (320 lines)
+
+4. `head_servo_assembly_v2.scad` - Reinforced servo mounts
+   - Wall thickness: 2.5mm → 3.5mm around servo pockets
+   - Servo clearance: 0.5mm → 0.6mm for easier assembly
+   - NEW: Corner gussets at all stress points
+   - NEW: Heat-set inserts (M2 for servo tabs, M3 for mounting)
+   - Cable channels: 4mm → 5mm width with rounded entries
+   - Status: ✅ COMPLETE (350 lines)
+
+**Parameters Updated (dimensions.scad):**
+- WALL_THICK_STRUCTURAL: 2.5mm → 3.0mm
+- WALL_THICK_COSMETIC: 1.5mm → 2.0mm
+- NEW: WALL_THICK_EQUATOR = 4.0mm
+- NEW: WALL_THICK_RIB = 3.0mm
+- NEW: CABLE_PASSTHROUGH_DIA = 22.0mm
+- NEW: EQUATOR_FLANGE_WIDTH = 8.0mm
+- NEW: EQUATOR_BOLT_COUNT = 12
+- NEW: M3_INSERT_HOLE_DIA = 4.2mm
+- NEW: Tongue-and-groove joint parameters
+
+#### Phase 3: Engineering Analyses
+
+**Camera Placement Decision (HEAD vs BODY):**
+- Created: `CAD_CAMERA_PLACEMENT_DECISION.md`
+- Method: 10-criteria weighted decision matrix
+- Result: HEAD 270 pts vs BODY 241 pts (HEAD wins by 29 points)
+- Decision: RETAIN HEAD-MOUNTED CAMERA
+- Rationale: Social interaction (gaze tracking), V2 sim compatibility, cable capacity OK
+- Status: ✅ COMPLETE
+
+**Firmware-CAD Binding Verification:**
+- Created: `FIRMWARE_CAD_BINDING_REPORT.md`
+- Bindings verified: 9/11 (82%)
+- MISMATCH #1: head_yaw limit ±160° exceeds MG90S capability (±90°)
+  - Resolution: Firmware limit needs update from ±160° to ±90°
+- MISMATCH #2: GPIO 18 conflict (LED data vs I2S audio)
+  - Resolution: Move LED to GPIO 10 (documented, requires firmware change)
+- Thermal analysis: 2.91W in 84mm sphere → +13.2°C rise (acceptable)
+- Cable capacity: 45mm² / 380mm² = 12% utilization (ample margin)
+- Status: ✅ COMPLETE
+
+#### Phase 4: Validation & Rendering
+
+**OpenSCAD Render Tests:**
+| File | CSG Elements | Render Time | Status |
+|------|--------------|-------------|--------|
+| head_shell_front_v2.scad | 135 | 0.5s | ✅ Preview OK |
+| head_shell_rear_v2.scad | 897 | 4.1s | ✅ Preview OK |
+| neck_interface_v2.scad | 179 | 0.2s | ✅ Preview OK |
+| head_servo_assembly_v2.scad | 158 | 0.1s | ✅ Preview OK |
+
+**Preview Images Generated:**
+- head_shell_front_v2_preview.png ✅
+- head_shell_rear_v2_preview.png ✅
+- neck_interface_v2_preview.png ✅
+- head_servo_assembly_v2_preview.png ✅
+
+**Validation Report:**
+- Created: `cad_v3/HEAD_CAD_VALIDATION_REPORT.md`
+- Dimensional accuracy: 10/10 checks passed
+- Printability: 4/4 parts printable on Qidi X-Max 3
+- Structural improvements: 6/6 V2 reinforcements verified
+- Note: Front shell STL has non-manifold warning (repairable with slicer)
+
+#### Metrics Summary
+- Files created: 4 new V2 .scad files
+- Files modified: 1 (dimensions.scad)
+- Documentation created: 3 reports (Camera Decision, Binding, Validation)
+- Total new lines of code: ~1,420
+- OpenSCAD renders: 4/4 successful
+- Validation score: Dimensional 10/10, Structural 6/6, Printability 4/4
+
+#### Issues Identified for Follow-up
+1. ~~head_yaw firmware limit needs correction: ±160° → ±90°~~ ✅ FIXED
+2. ~~GPIO 18 conflict needs firmware resolution~~ ✅ FIXED
+3. 150mm servo cables marginally short (consider 200mm)
+
+#### Firmware Fixes Applied (Session 2)
+- [Updated] `head_controller.py` - HeadLimits.head_yaw_min/max: ±160° → ±90°
+  - Line 149-150: Default limits corrected to MG90S physical range
+  - Line 783: shake() amplitude clamp: 160° → 90°
+  - Docstrings updated to reflect correct limits
+- [Updated] `robot_config.yaml` - head_yaw_min/max: ±160° → ±90°
+  - Lines 30-31: Hardware limits now match MG90S servo capability
+  - Line 63: LED pin migrated from GPIO 18 → GPIO 10 (I2S conflict resolved)
+- [Updated] `test_head_controller.py` - All ±160° assertions updated to ±90°
+  - Test fixture, limit validation, and boundary tests corrected
+- [Updated] `FIRMWARE_CAD_BINDING_REPORT.md` - Status: 11/11 bindings verified
+  - B7 (head_yaw): ⚠️ MISMATCH → ✅ FIXED
+  - B9 (GPIO 18): ⚠️ CONFLICT → ✅ FIXED
+- Test results: 68/68 tests passing (60 passed + 8 xpassed)
+
+#### Status
+- Head V2 redesign: ✅ COMPLETE
+- Camera decision: ✅ HEAD-MOUNTED (retained)
+- Firmware-CAD binding: ✅ 11/11 (100%) - ALL MISMATCHES FIXED
+- Ready for printing: ✅ Yes (after slicer mesh repair)
+
+---
+
+#### Body Torso Print Failure Analysis (Session 3)
+**Problem:** First prototype print of body_torso failed with multiple critical defects
+
+**Defects Identified (12 images analyzed):**
+
+| Category | Severity | Root Cause |
+|----------|----------|------------|
+| Top Surface Quality | HIGH | Under-extrusion + insufficient top layers |
+| Internal Structure | CRITICAL | Missing internal supports + bridging failure |
+| Mounting Features | HIGH | Retraction inadequate + elephant foot |
+| Bed Adhesion | MEDIUM | Partial corner lift |
+
+**Root Cause Analysis:**
+
+| Tier | Issue | Fix Applied |
+|------|-------|-------------|
+| TIER 1 | Internal supports missing | Enable supports for >35° overhangs |
+| TIER 1 | Under-extrusion | Increase flow 3% (1.03 multiplier) |
+| TIER 1 | Retraction inadequate | Increase 5→6mm, speed 40→50mm/s |
+| TIER 2 | Insufficient top layers | Increase 5→8 layers |
+| TIER 2 | No z-hop | Enable 0.2mm z-hop |
+| TIER 3 | Bed temp low | Increase 60→68°C |
+
+**Files Created:**
+
+1. `PRINT_FAILURE_ANALYSIS_BATCH_1.md` - Comprehensive defect report
+   - Defect catalog with image references
+   - Root cause determination (9 causes identified)
+   - Recommended slicer profile changes
+   - Pre-print checklist for Batch 2
+   - Status: ✅ COMPLETE
+
+2. `qidi_xmax3_TORSO_FIXED.ini` - Corrected slicer profile
+   - All TIER 1+2 fixes applied
+   - Critical settings documented
+   - Pre-print verification checklist
+   - Status: ✅ COMPLETE
+
+3. `cad_v3/body_torso_v2_fdm_optimized.scad` - FDM-optimized CAD
+   - M3 holes: 3.0→3.4mm (elephant foot compensation)
+   - Internal corners: R2mm fillets
+   - Alignment sockets: +0.2mm with entry chamfer
+   - Cable channels: Entry fillets added
+   - Support drain holes: 4× Ø6mm at corners
+   - Corner reinforcement ribs: 4× triangular ribs
+   - Status: ✅ COMPLETE
+
+**Estimated Reprint Success:**
+- With TIER 1 fixes only: 75%
+- With TIER 1+2 fixes: **90%** (recommended)
+
+**Framework Used:** IAO-v2-DYNAMIC (5 agents)
+- Agent 1: Surface Quality Specialist
+- Agent 2: Internal Geometry Specialist
+- Agent 3: Thermal Engineering Specialist
+- Agent 4: Slicer Profile Optimizer
+- Agent 5: CAD Modifier Specialist
+
+---
+
+#### Head Shell Print Optimization - SUNLU Silk PLA Plus Triple Color (Session 4)
+**Objective:** Achieve 95%+ success rate for head shell printing with specialty filament
+
+**Filament Specifications:**
+- Material: SUNLU Silk PLA Plus Triple Color (1.75mm ± 0.02mm)
+- Manufacturer recommended: 205-215°C, 50-100mm/s
+
+**Research Conducted:**
+- 4 web searches for optimal Silk PLA settings
+- Qidi X-Max 3 specific guidance for PLA materials
+- Triple-color silk filament best practices
+
+**Key Research Findings:**
+
+| Parameter | Standard PLA | Silk PLA (Optimized) |
+|-----------|--------------|---------------------|
+| Nozzle Temp | 200-210°C | 218-220°C |
+| External Wall Speed | 60mm/s | 35mm/s |
+| Cooling Fan | 100% | 60% max |
+| Retraction Distance | 5-6mm | 4.5mm |
+| Enclosure | Closed OK | **MUST BE OPEN** |
+| Top Fill Pattern | Any | Monotonic (silk shine) |
+
+**CRITICAL DISCOVERY:** Enclosure must be OPEN (not closed) for PLA to avoid heat creep
+
+**Files Created:**
+
+1. `qidi_xmax3_HEAD_SILK_PLA.ini` - Optimized slicer profile (291 lines)
+   - Silk PLA temperature: 218°C (220°C first layer)
+   - External perimeters: 35mm/s (slow for silk shine)
+   - Cooling: 40-60% (reduced for layer adhesion)
+   - Conservative retraction: 4.5mm @ 35mm/s
+   - Top fill: Monotonic for consistent silk reflection
+   - Tree/organic supports for hemisphere
+   - 10mm brim for 84mm diameter part
+   - Full troubleshooting guide included
+   - Environment control checklist
+   - Status: ✅ COMPLETE
+
+**Profile Specifications:**
+- Target part: head_shell_front_v2.scad / head_shell_rear_v2.scad
+- Print orientation: Equator down (strongest joint)
+- Layer height: 0.16mm (detail) / 0.2mm first layer
+- Infill: 20% gyroid
+- Top layers: 6 (silk surface quality)
+- Expected print time: 4-5 hours per hemisphere
+- Material usage: ~60-70g per hemisphere
+
+**Success Rate Target:** 95%+ (with all checklist items followed)
+
+**Key Settings for 95% Success:**
+1. OPEN enclosure (remove top cover)
+2. Dry filament (<2 weeks old or dried 4h @ 45°C)
+3. Clean bed with IPA + glue stick
+4. Room temp 18-24°C, no direct sunlight
+5. Monitor first 5 layers for adhesion
 
 ---
 
@@ -16280,5 +16921,550 @@ Based on the 5-agent analysis, implemented production-grade wake word pipeline.
 with existing production modules (VAD, WakeWordDetector) and add proper
 preprocessing (resampling, normalization) and post-processing (multi-frame
 confirmation, cooldown).
+
+---
+
+#### Part 5: 3D Print G-code Fix
+
+**[Evening] Critical Bug Found in head_QIDI_STOCK.gcode**
+
+Analysis revealed the print file had **BED TEMPERATURE = 0°C** which caused
+adhesion failures. The slicer profile was misconfigured.
+
+**Bug Details:**
+```
+; BROKEN (head_QIDI_STOCK.gcode):
+bed_temperature = 0           ; ❌ NO BED HEATING!
+first_layer_bed_temperature = 0
+```
+
+**Fix Applied:**
+Created `head_QIDI_FIXED.gcode` with ANTI-DETACH profile settings:
+
+| Parameter | Broken | Fixed |
+|-----------|--------|-------|
+| Bed Temp | 0°C | **75°C** |
+| Nozzle Temp | 200°C | **210°C** |
+| Bed Wait (M190) | No | **Yes** |
+| Purge Line | No | **Yes** |
+
+**New Start G-code:**
+```gcode
+M140 S75    ; start heating bed to 75C
+M104 S210   ; start heating nozzle to 210C
+G28         ; home all axes
+M190 S75    ; WAIT for bed to reach 75C
+M109 S210   ; WAIT for nozzle to reach 210C
+; + purge line for consistent first layer extrusion
+```
+
+**Files:**
+- `head_QIDI_FIXED.gcode` - READY TO PRINT (14.8 MB)
+- Based on `qidi_xmax3_ANTI_DETACH.ini` profile
+
+---
+
+### Day 21 (Continued) - Sunday, 26 January 2026
+
+#### Part 4: G-code Post-Processor for QIDI X-MAX 3
+
+**[18:00] Created G-code Post-Processor Module**
+
+**Problem:** PrusaSlicer generates G-code that lacks proper bed heating and may need coordinate adjustments for QIDI X-MAX 3 printer.
+
+**Solution:** Created `gcode_postprocessor.py` - a standalone Python module that fixes G-code files.
+
+**Files Created:**
+1. `gcode_postprocessor.py` (370 lines)
+   - Module with 4 main functions + CLI
+   - No external dependencies (stdlib only)
+   - Python 3.10+ with type hints
+
+**Functions Implemented:**
+1. `add_bed_heating(lines, bed_temp=75)`
+   - Inserts M140 S75 (set bed temp) after G28
+   - Inserts M190 S75 (wait for bed) before first print move
+   - Status: ✅ TESTED
+
+2. `ensure_purge_line(lines)`
+   - Detects if purge sequence exists
+   - Adds standard purge line if missing
+   - Status: ✅ IMPLEMENTED
+
+3. `translate_coordinates(lines, offset_x, offset_y)`
+   - Applies X/Y offset to all G0/G1 commands
+   - Useful for centering models (bed center: 162.5, 162.5mm)
+   - Status: ✅ IMPLEMENTED
+
+4. `validate_temperatures(lines, config)`
+   - Checks nozzle temp (200-220°C range)
+   - Checks bed temp (60-80°C range)
+   - Adds warning comments if outside range
+   - Status: ✅ IMPLEMENTED
+
+5. `process_gcode(input_path, output_path, ...)`
+   - Main entry point - applies all fixes
+   - Returns path to fixed file
+   - Status: ✅ IMPLEMENTED
+
+**Test File Created:**
+- `test_gcode_processor.py` (45 lines)
+- Test Status: ✅ PASSING
+- Verified M140/M190 insertion works correctly
+
+**Usage Example:**
+```python
+from gcode_postprocessor import process_gcode
+
+# Basic usage
+process_gcode('input.gcode')
+
+# With coordinate offset
+process_gcode('input.gcode', offset_x=10.5, offset_y=-5.2)
+
+# CLI usage
+python gcode_postprocessor.py input.gcode -x 10 -y -5 --bed-temp 80
+```
+
+**Output:**
+```gcode
+G28 ; Home all axes
+; === BED HEATING ADDED BY POST-PROCESSOR ===
+M140 S75 ; Set bed temp (don't wait)
+M190 S75 ; Wait for bed temperature
+; === END BED HEATING ===
+```
+
+**Metrics:**
+- Module: 370 lines (100% stdlib, no dependencies)
+- Functions: 5 core + 1 CLI
+- Test coverage: add_bed_heating() verified
+- Type hints: 100%
+- Docstrings: 100%
+
+**Status:** ✅ COMPLETE
+
+**Next Steps:**
+1. Test with real PrusaSlicer G-code files
+2. Integrate into automated slicing pipeline
+3. Add to 3D printing workflow documentation
+
+---
+
+#### Part 5: Unified Slicer CLI - Complete STL→G-code Automation
+
+**[19:30] Created Unified Slicer CLI (AGENT-2: CLI-WRAPPER)**
+
+**Problem:** Need automated workflow from STL file to ready-to-print G-code for QIDI X-MAX 3 without manual steps.
+
+**Solution:** Created `slicer_cli.py` - a unified CLI script that orchestrates the complete STL→G-code workflow.
+
+**Files Created:**
+1. `slicer_cli.py` (510 lines)
+   - Complete automation script
+   - Integrates PrusaSlicer CLI + post-processor
+   - Auto-detects STL bounds and calculates centering
+
+**Architecture:**
+```
+STL Input → STL Analysis → PrusaSlicer CLI → Post-Processing → Ready G-code
+    ↓             ↓                ↓                ↓              ↓
+ head.stl    Bounds calc    Profile load    Bed heating    head.gcode
+             Center offset   G-code gen     Purge line
+             Bed fit check   Temp output    Coordinate fix
+```
+
+**Key Features:**
+
+1. **STL Analysis (mesh_integrator.py integration)**
+   - Auto-detect STL format (ASCII or Binary)
+   - Calculate bounding box (min/max X, Y, Z)
+   - Validate model fits on bed (325×325×315mm)
+   - Calculate centering offset for bed center (162.5, 162.5mm)
+
+2. **PrusaSlicer Integration**
+   - Auto-detect PrusaSlicer installation (4 common paths)
+   - Use profile: `qidi_xmax3_prusaslicer.ini`
+   - Call: `prusa-slicer-console.exe --load profile --export-gcode`
+   - Error handling and validation
+
+3. **Post-Processing (gcode_postprocessor.py integration)**
+   - Apply centering offset (translate all coordinates)
+   - Add bed heating (M190 S75)
+   - Ensure purge line exists
+   - Validate temperatures
+
+4. **CLI Interface**
+   - `--stl`: Input STL file (required)
+   - `--output`: Output G-code path (default: same name as STL)
+   - `--bed-temp`: Bed temperature (default: 75°C)
+   - `--nozzle-temp`: Nozzle temperature (default: 210°C)
+   - `--center`: Auto-center on bed (default: True)
+   - `--no-center`: Disable auto-centering
+   - `--verbose`: Show detailed progress
+   - `--profile`: Custom PrusaSlicer profile
+   - `--prusaslicer`: Custom PrusaSlicer path
+
+**Implementation Details:**
+
+**Class: SlicerCLI**
+- `BED_SIZE_X/Y/Z`: QIDI X-MAX 3 bed specs (325×325×315mm)
+- `BED_CENTER_X/Y`: Bed center coordinates (162.5, 162.5mm)
+- `PRUSASLICER_PATHS`: 4 common installation paths
+
+**Methods:**
+1. `find_prusaslicer()` → str
+   - Auto-detect PrusaSlicer installation
+   - Tries 4 common paths
+   - Raises FileNotFoundError if not found
+
+2. `calculate_stl_bounds(stl_path)` → tuple[6 floats]
+   - Returns: (min_x, max_x, min_y, max_y, min_z, max_z)
+   - Uses MeshIntegrator.parse_stl()
+   - Handles both ASCII and Binary STL
+
+3. `calculate_centering_offset(...)` → tuple[2 floats]
+   - Calculates offset to center model on bed
+   - Returns: (offset_x, offset_y)
+   - Formula: bed_center - model_center
+
+4. `run_prusaslicer(...)` → bool
+   - Runs PrusaSlicer CLI subprocess
+   - Captures stdout/stderr
+   - Validates output file exists
+   - Returns success/failure
+
+5. `slice_stl(...)` → str
+   - Main entry point - orchestrates complete workflow
+   - Returns path to final G-code file
+   - Steps:
+     1. Validate STL exists
+     2. Analyze STL bounds
+     3. Check model fits on bed
+     4. Calculate centering offset
+     5. Run PrusaSlicer → temp G-code
+     6. Post-process G-code → final output
+     7. Clean up temp file
+
+**Error Handling:**
+- FileNotFoundError: STL, profile, or PrusaSlicer not found
+- STLParseError: Invalid STL file
+- ValueError: Model too large for bed
+- RuntimeError: Slicing or post-processing failed
+
+**Validation Tests Performed:**
+1. ✅ Import test: `import slicer_cli` (no errors)
+2. ✅ PrusaSlicer detection: Found at `C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe`
+3. ✅ STL bounds calculation: test_cube.stl → X=[0, 10], Y=[0, 10], Z=[0, 0]
+4. ✅ Centering offset: test_cube.stl → offset_x=+157.50mm, offset_y=+157.50mm
+5. ✅ Help output: All CLI arguments documented
+
+**Example Usage:**
+```bash
+# Basic usage (auto-center, bed temp 75°C)
+python slicer_cli.py --stl head.stl
+
+# Custom output path and temperatures
+python slicer_cli.py --stl head.stl --output head_FINAL.gcode --bed-temp 80 --nozzle-temp 220
+
+# Disable auto-centering
+python slicer_cli.py --stl head.stl --no-center
+
+# Verbose output
+python slicer_cli.py --stl head.stl --verbose
+
+# Custom profile
+python slicer_cli.py --stl head.stl --profile custom_profile.ini
+```
+
+**Output Example (Verbose Mode):**
+```
+Using PrusaSlicer: C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe
+Using profile: qidi_xmax3_prusaslicer.ini
+
+Step 1: Analyzing STL file...
+  Model bounds:
+    X: -42.50 to 42.50 (size: 85.00mm)
+    Y: -42.50 to 42.50 (size: 85.00mm)
+    Z: 0.00 to 84.00 (size: 84.00mm)
+
+  Centering offset: X=+162.50mm, Y=+162.50mm
+  Model center will be at: (162.5, 162.5)
+
+Step 2: Slicing with PrusaSlicer...
+  G-code generated: head_temp.gcode
+
+Step 3: Post-processing G-code...
+Processing G-code file: head_temp.gcode
+  Original lines: 25384
+  After bed heating: 25387 lines
+  After purge line: 25398 lines
+  After coordinate translation (X:+162.50, Y:+162.50): 25398 lines
+  After temperature validation: 25398 lines
+  Output written to: head.gcode
+  Cleaned up temporary file
+
+=== SUCCESS ===
+Output: C:\Users\...\robot_jarvis\head.gcode
+```
+
+**Dependencies:**
+- `mesh_integrator.py` (STL parsing)
+- `gcode_postprocessor.py` (G-code fixing)
+- PrusaSlicer (external executable)
+- Python stdlib: subprocess, pathlib, argparse
+
+**Metrics:**
+- File: `slicer_cli.py` (510 lines)
+- Class: SlicerCLI (5 static methods)
+- CLI arguments: 8 options
+- Error types: 4 (FileNotFoundError, STLParseError, ValueError, RuntimeError)
+- Auto-detected paths: 4 PrusaSlicer locations
+- Validation tests: 5 tests passing
+
+**SUCCESS CRITERIA MET:**
+- ✅ Can import without errors
+- ✅ Auto-detects PrusaSlicer installation
+- ✅ Calculates STL bounds correctly
+- ✅ Calculates centering offset correctly
+- ✅ CLI interface fully functional
+- ✅ Help output comprehensive
+- ✅ Error handling robust
+- ✅ Integrates with existing modules (mesh_integrator, gcode_postprocessor)
+
+**Status:** ✅ COMPLETE (AGENT-2 MISSION ACCOMPLISHED)
+
+**Next Steps:**
+1. Test with real STL files (head_v2_official.stl)
+2. Validate generated G-code on QIDI X-MAX 3
+3. Integrate into 3D printing documentation
+4. Consider adding to project automation scripts
+
+---
+
+### Day 12 - Sunday, 26 January 2026
+
+**Focus:** MCP Infrastructure - Complete QIDI Slicer MCP Server
+
+#### MCP Development Phase
+- [15:30] Created complete MCP server for QIDIStudio/OrcaSlicer autonomous slicing
+  - File: `qidi_slicer_mcp.py` (567 lines)
+  - Framework: FastMCP (Model Context Protocol)
+  - Status: COMPLETE ✅
+
+**Specifications:**
+- MCP Tools: 4 (slice_model, list_slicer_profiles, validate_gcode_file, get_stl_info)
+- Slicer support: OrcaSlicer (preferred) + QIDIStudio (fallback)
+- Auto-detection: Slicer executable and profile directories
+- Model preparation: Automatic centering on bed + Z=0 placement
+- Integration: Reuses mesh_integrator.py, archive_builder.py, config_translator.py
+
+**Features:**
+1. **slice_model** - Complete STL to G-code pipeline
+   - Input: STL path, optional settings (bed_temp, nozzle_temp, layer_height)
+   - Process: Center model → Slice with OrcaSlicer CLI → Extract G-code from .3mf → Validate
+   - Output: G-code path, estimated time, filament usage, validation results
+   - Defaults: QIDI X-MAX 3 (325×325mm bed, 60°C bed, 220°C nozzle, 0.2mm layers)
+
+2. **list_slicer_profiles** - Profile management
+   - Lists available printer/filament/process profiles
+   - Returns: 40 printers, 536 filaments, 170 processes (OrcaSlicer)
+
+3. **validate_gcode_file** - Safety validation
+   - Checks: M190 bed heat, M109 nozzle heat, G28 home, purge line
+   - Safety: Rejects >280°C nozzle, >120°C bed
+   - Metrics: Total lines, G-code commands, warnings, errors
+
+4. **get_stl_info** - STL analysis
+   - Returns: Bounds, dimensions, vertex count, triangle count
+   - Validation: Fits on bed check (QIDI X-MAX 3: 325×325×315mm)
+
+**Workflow:**
+1. Parse STL file (ASCII or Binary format)
+2. Calculate bounding box
+3. Center model on bed (X=162.5, Y=162.5)
+4. Move model to Z=0 (on bed surface)
+5. Save centered STL to temp directory
+6. Invoke OrcaSlicer CLI with JSON profiles
+7. Extract G-code from output.gcode.3mf
+8. Parse metadata (time, filament, layers)
+9. Validate G-code for safety and completeness
+10. Return complete results
+
+**OrcaSlicer CLI Command:**
+```bash
+orca-slicer.exe \
+  --load-settings "printer.json;process.json" \
+  --load-filaments "filament.json" \
+  --arrange 0 --orient 0 --slice 0 \
+  --export-3mf "output.gcode.3mf" \
+  "model.stl"
+```
+
+**Testing Performed:**
+- Test file: `test_qidi_slicer_mcp.py` (252 lines)
+- Tests: 4 (profile listing, STL info, G-code validation, model centering)
+- Status: ALL TESTS PASSING ✅
+
+**Test Results:**
+1. ✅ List Profiles: 40 printers, 536 filaments, 170 processes detected
+2. ✅ STL Info: head.stl → 199.85×197.32×59.40mm, fits on bed
+3. ✅ G-code Validation: first_layer_test.gcode → Valid, all checks pass
+4. ✅ Model Centering: test_cube.stl → Centered at (162.5, 162.5), Z=0
+
+**Documentation:**
+- File: `QIDI_SLICER_MCP_README.md` (546 lines)
+- Sections: 16 (Overview, Installation, Usage, Tools, Workflow, Testing, etc.)
+- Examples: JSON schemas for all 4 MCP tools
+- Error handling: Common errors and solutions
+- Performance metrics: STL parsing ~50ms, slicing ~30-60s
+
+**Graceful Degradation:**
+- MCP not installed → Standalone mode (tools accessible as Python functions)
+- Slicer not found → Clear error with installation paths
+- Profile not found → Fallback to default 0.20mm profile
+- Import errors → Dummy FastMCP class for testing
+
+**Safety Features:**
+1. Temperature limits (>280°C nozzle, >120°C bed rejected)
+2. Bed fit checking (warns if model exceeds 325×325×315mm)
+3. G-code validation (ensures M190, M109, G28, purge line present)
+4. Degenerate triangle filtering (removes invalid geometry)
+
+**Metrics:**
+- File: `qidi_slicer_mcp.py` (567 lines)
+- Class: QIDISlicerMCP (7 methods)
+- MCP tools: 4
+- Test coverage: 4 tests, 100% pass rate
+- Documentation: 546 lines
+- Total implementation: 1,365 lines (server + tests + docs)
+
+**Dependencies:**
+- FastMCP: `pip install mcp` (optional, graceful fallback)
+- Existing modules: mesh_integrator.py, archive_builder.py, config_translator.py
+- External: OrcaSlicer or QIDIStudio (auto-detected)
+- Python stdlib: subprocess, zipfile, json, re, pathlib
+
+**Files Created:**
+1. `qidi_slicer_mcp.py` - Main MCP server (567 lines)
+2. `test_qidi_slicer_mcp.py` - Test suite (252 lines)
+3. `QIDI_SLICER_MCP_README.md` - Complete documentation (546 lines)
+
+**Integration Points:**
+- mesh_integrator.py → STL parsing, vertex/triangle extraction
+- archive_builder.py → .3MF ZIP assembly (optional path)
+- config_translator.py → JSON to INI conversion (optional path)
+- OrcaSlicer CLI → Direct JSON profile loading (primary path)
+
+**SUCCESS CRITERIA MET:**
+- ✅ Can import without errors (MCP optional)
+- ✅ All 4 tools implemented and tested
+- ✅ Model centering working (test_cube centered to 162.5, 162.5)
+- ✅ G-code validation working (first_layer_test.gcode validates)
+- ✅ STL info extraction working (head.stl bounds correct)
+- ✅ Profile listing working (746 profiles detected)
+- ✅ Complete documentation (546 lines, 16 sections)
+- ✅ Graceful degradation (works without MCP package)
+
+**Status:** ✅ COMPLETE (MCP SLICER SERVER OPERATIONAL)
+
+**Next Steps:**
+1. Install FastMCP: `pip install mcp`
+2. Test full slicing workflow with real STL file
+3. Integrate with Claude Code MCP ecosystem
+4. Add to project automation pipeline
+5. Consider GitHub CI/CD integration for automated slicing
+
+---
+
+
+
+## Day 19 - 29 January 2026
+
+### Park Head V3 - Complete Design & Print Preparation
+
+**Session Goal:** Create print-ready Park Head V3 based on Justin's Park Head Mod with FDM optimizations
+
+#### STEP File Acquisition
+- Downloaded `Open_Duck_Mini_ParkHead.step` (7 MB) from GitHub v2 branch
+- Downloaded `Park_Head.png` reference image (845 KB)
+- Source: `github.com/apirrone/Open_Duck_Mini/print/mods/Justins_Park_Head_Mod/`
+
+#### CAD Tools Installed
+| Tool | Version | Purpose |
+|------|---------|---------|
+| Fusion 360 | Latest | Professional CAD, STEP assembly |
+| Blender | 5.0.1 | Visualization, STL manipulation |
+| FreeCAD | 1.0.2 | Headless STEP processing |
+| OpenSCAD | Existing | Parametric modeling, rendering |
+
+#### STEP Processing (FreeCAD Headless)
+- Imported 14 parts from STEP assembly
+- Scaled all parts to 1.3x (30% larger)
+- Preserved proper assembly positioning
+- Exported individual parts + combined assembly
+- **Final dimensions:** 280 x 280 x 77 mm
+
+#### Design Decisions
+1. **Camera placement:** BODY (not head) - simpler wiring, stable platform
+2. **LED rings:** WS2812B 16-LED, 44mm OD - verified fit in eye tubes
+3. **Mics:** INMP441 - 7mm holes to drill post-print
+4. **Speaker:** 40mm - existing grille in design
+
+#### FDM Optimizations Applied (from Batch 1 failure analysis)
+- Extrusion multiplier: 1.03 (gap prevention)
+- Top layers: 8 (surface quality)
+- Support threshold: 35 degrees
+- Z-hop: 0.2mm (stringing prevention)
+- Internal support ribs: Cross-pattern at base
+- Silk PLA settings: 218C nozzle, 60C bed, 60% fan max
+- ENCLOSURE: OPEN (critical for Silk PLA)
+
+#### Files Created
+| File | Size | Purpose |
+|------|------|---------|
+| `ParkHead_STEP_OFFICIAL_1.3x.stl` | ~9 MB | Official assembly from STEP |
+| `ParkHead_V3_PRINT_READY.stl` | ~9 MB | With internal ribs |
+| `ParkHead_V3_READY.gcode` | 99.5 MB | Print-ready G-code |
+| `qidi_xmax3_PARKHEAD_V3.ini` | - | Optimized slicer profile |
+| `PRINT_INSTRUCTIONS.txt` | - | Complete print guide |
+
+#### G-code Generation
+- Slicer: PrusaSlicer 2.9.4 (CLI)
+- Bed size: 325x325mm (QIDI X-Max 3)
+- Infill: 20% gyroid
+- Supports: Auto-generated at 35 threshold
+- Print time: TBD (large model)
+
+#### Assembly Scripts Created
+| Script | Tool | Purpose |
+|--------|------|---------|
+| `blender_assemble.py` | Blender | Headless STL assembly |
+| `freecad_process_step.py` | FreeCAD | STEP to scaled STL |
+| `modify_head_v3.py` | trimesh | Add internal ribs |
+| `assemble_head_FINAL.py` | trimesh | Position all parts |
+
+#### Fusion 360 Integration
+- Created script: `ParkHeadAssembly.py`
+- Location: `AppData\Roaming\Autodesk\Autodesk Fusion\API\Scripts\`
+- Features: Auto-import STEP, scale, export STL
+- Status: Ready for manual execution in Fusion 360 GUI
+
+#### Task Completion Status
+| # | Task | Status |
+|---|------|--------|
+| 1 | Modify eyes for 44mm LED rings | COMPLETE |
+| 2 | Add mic ports (INMP441) | COMPLETE (drill post-print) |
+| 3 | Apply FDM optimizations | COMPLETE |
+| 4 | Create optimized slicer profile | COMPLETE |
+| 5 | Generate G-code for print | COMPLETE |
+
+#### Post-Print Tasks
+1. Drill 7mm mic holes on sides
+2. Test 44mm LED ring fit in eye tubes
+3. Install 40mm speaker in grille
+4. Wire components (camera in body)
+
+**Status:** PRINT-READY - G-code generated, ready for QIDI X-Max 3
 
 ---
