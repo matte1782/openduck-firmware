@@ -3,31 +3,51 @@
 # Created: 18 January 2026
 
 # =================================================================
-# HEAD CONTROLLER (Day 11)
-# Pan/Tilt head control with Disney animation principles
+# HEAD CONTROLLER - 4-DOF CONFIGURATION (CORRECTED 19 Jan 2026)
+# DO NOT CHANGE TO 2-DOF - Required for V2 simulation compatibility
+# See: V3_HEAD_DOF_ANALYSIS.md for rationale
 # =================================================================
 head:
   enabled: true
-  pan_channel: 12      # PCA9685 channel for pan servo
-  tilt_channel: 13     # PCA9685 channel for tilt servo
+
+  # 4-DOF Head Configuration (V2-compatible)
+  # Matches Open_Duck_Mini V2 simulation for direct policy deployment
+  neck_pitch_channel: 10    # PCA9685 ch 10 - MG90S #1 - Base neck up/down
+  head_pitch_channel: 11    # PCA9685 ch 11 - MG90S #2 - Head nod forward/back
+  head_yaw_channel: 12      # PCA9685 ch 12 - MG90S #3 - Head rotate left/right
+  head_roll_channel: 13     # PCA9685 ch 13 - MG90S #4 - Head tilt side-to-side (Pixar secret!)
 
   limits:
-    pan_min: -90       # Minimum pan angle (degrees, negative = left)
-    pan_max: 90        # Maximum pan angle (degrees, positive = right)
-    tilt_min: -45      # Minimum tilt angle (degrees, negative = down)
-    tilt_max: 45       # Maximum tilt angle (degrees, positive = up)
-    pan_center: 0      # Center/home position for pan
-    tilt_center: 0     # Center/home position for tilt
+    # Neck pitch (base movement) - From V2 XML line 223
+    neck_pitch_min: -20      # -20° = neck down
+    neck_pitch_max: 65       # +65° = neck up (full range)
+
+    # Head pitch (nod) - From V2 XML line 240
+    head_pitch_min: -45      # -45° = nod down
+    head_pitch_max: 45       # +45° = look up
+
+    # Head yaw (pan/rotate) - CORRECTED: MG90S servo limit is ±90°
+    # Original V2 XML allowed ±160° but hardware cannot achieve this
+    # See: FIRMWARE_CAD_BINDING_REPORT.md, Mismatch B7
+    head_yaw_min: -90        # -90° = hard left (MG90S physical limit)
+    head_yaw_max: 90         # +90° = hard right (MG90S physical limit)
+
+    # Head roll (tilt) - From V2 XML line 266
+    head_roll_min: -30       # -30° = tilt left
+    head_roll_max: 30        # +30° = tilt right
 
   servo_config:
-    pan_inverted: false
-    tilt_inverted: false
+    neck_pitch_inverted: false
+    head_pitch_inverted: false
+    head_yaw_inverted: false
+    head_roll_inverted: false
 
   animation:
     default_speed_ms: 300       # Default movement duration (ms)
     easing: 'ease_in_out'       # Default easing function
     nod_amplitude: 15           # Default nod amplitude (degrees)
     shake_amplitude: 20         # Default shake amplitude (degrees)
+    tilt_amplitude: 10          # Head roll tilt for curious/confused (NEW!)
     glance_max_deviation: 30    # Max random glance offset (degrees)
     glance_hold_ms: 500         # Duration to hold glance position
 
@@ -36,18 +56,53 @@ head:
     soft_limit_margin: 10              # Degrees inside hard limits for soft warning
 
 # =================================================================
+# ARM SYSTEM - Joint limits and collision avoidance
+# Added Day 47 Phase 4 — CAD Error 1 (arm-head collision) mitigation
+# =================================================================
+arms:
+  enabled: true
+  left_arm:
+    shoulder_yaw_id: TBD    # STS3215 servo ID — assign during assembly
+    shoulder_pitch_id: TBD
+    elbow_id: TBD
+  right_arm:
+    shoulder_yaw_id: TBD
+    shoulder_pitch_id: TBD
+    elbow_id: TBD
+
+  limits:
+    # Static joint limits (degrees)
+    shoulder_yaw_min: -120
+    shoulder_yaw_max: 120
+    shoulder_pitch_min: -10    # Slight backward reach
+    shoulder_pitch_max: 90     # Full forward/up reach
+    elbow_min: 0               # No hyperextension
+    elbow_max: 135
+
+  collision_zone:
+    # When shoulder_yaw in forward zone, cap pitch to avoid head strike
+    # CAD analysis: arm at 45° pitch + yaw in [-30,+30] → head collision
+    forward_yaw_min: -30
+    forward_yaw_max: 30
+    forward_pitch_max: 30      # Reduced from 90° when in forward zone
+
+  safety:
+    velocity_limit_deg_per_sec: 120    # Max angular velocity (slower than head)
+    soft_limit_margin: 5               # Degrees inside hard limits for soft warning
+
+# =================================================================
 # LED SYSTEM
 # NeoPixel LED configuration for eye displays and status
 # =================================================================
 leds:
   enabled: true
   left_eye:
-    pin: 12            # GPIO pin for left eye LED strip
-    count: 37          # Number of LEDs (37-LED matrix)
+    pin: 10            # GPIO pin for left eye LED strip (MIGRATED from GPIO 18 - I2S conflict)
+    count: 16          # Number of LEDs per ring (CORRECTED from 37)
     brightness: 0.8    # Default brightness (0.0 - 1.0)
   right_eye:
     pin: 13            # GPIO pin for right eye LED strip
-    count: 37          # Number of LEDs (37-LED matrix)
+    count: 16          # Number of LEDs per ring (CORRECTED from 37)
     brightness: 0.8    # Default brightness (0.0 - 1.0)
 
   animation:
