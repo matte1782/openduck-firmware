@@ -15,7 +15,8 @@ Tests cover:
 
 All tests run on Windows/Linux without hardware (mock mode or mocked serial).
 
-Hostile review (Day 48): 3C + 5H found, all fixed and tested.
+Hostile review #1 (Day 48): 3C + 5H found, all fixed and tested.
+Hostile review #2 (Day 48): 2C + 2H found, all fixed and tested.
 """
 
 import threading
@@ -286,6 +287,21 @@ class TestResponseValidation:
         resp = _position_response(1, 2048)
         self.driver._validate_response(resp, expected_id=1, min_len=8)
 
+    def test_trailing_garbage_ignored(self):
+        """C4 FIX: LENGTH field determines boundary, not resp[-1]."""
+        resp = _ping_response(1)
+        # Append garbage bytes — should still validate using LENGTH field
+        resp_with_garbage = resp + b'\xDE\xAD\xBE\xEF'
+        # Should not raise — checksum computed from LENGTH, not resp[-1]
+        self.driver._validate_response(resp_with_garbage, expected_id=1, min_len=6)
+
+    def test_length_field_exceeds_response_size(self):
+        """Reject if LENGTH claims more bytes than actually received."""
+        # Craft response with LEN=10 but only 6 bytes total
+        resp = b'\xFF\xFF\x01\x0A\x00\xF4'  # LEN=10, but only 6 bytes
+        with pytest.raises(IOError, match="LENGTH field"):
+            self.driver._validate_response(resp, expected_id=1, min_len=6)
+
 
 # ============================================================
 # Mock mode behavior
@@ -426,6 +442,21 @@ class TestHardwareMode:
         mock_port.write.side_effect = Exception("USB disconnected")
         assert driver.ping(1) is False
 
+    def test_ping_validates_response_id(self, mock_serial_driver):
+        """C5 FIX: ping rejects response from wrong servo ID."""
+        driver, mock_port = mock_serial_driver
+        # Response from servo ID 5, but we pinged servo ID 1
+        mock_port.read.return_value = _ping_response(5)
+        assert driver.ping(1) is False
+
+    def test_ping_rejects_corrupted_response(self, mock_serial_driver):
+        """C5 FIX: ping rejects response with bad checksum."""
+        driver, mock_port = mock_serial_driver
+        resp = bytearray(_ping_response(1))
+        resp[-1] ^= 0xFF
+        mock_port.read.return_value = bytes(resp)
+        assert driver.ping(1) is False
+
     def test_read_position(self, mock_serial_driver):
         driver, mock_port = mock_serial_driver
         mock_port.read.return_value = _position_response(1, 2048)
@@ -459,6 +490,12 @@ class TestHardwareMode:
         """H2 FIX: logs warning and returns False on no response."""
         driver, mock_port = mock_serial_driver
         mock_port.read.return_value = b''
+        assert driver.set_position(1, 90.0) is False
+
+    def test_set_position_error_flags_returns_false(self, mock_serial_driver):
+        """H6 FIX: set_position detects servo error flags."""
+        driver, mock_port = mock_serial_driver
+        mock_port.read.return_value = _make_response(1, error=0x04, data=b'')
         assert driver.set_position(1, 90.0) is False
 
     def test_read_voltage(self, mock_serial_driver):
@@ -598,6 +635,29 @@ class TestTorqueDisableAllSafety:
         driver = STS3215Driver()
         assert driver._mock_mode is True
         driver.torque_disable_all([1, 2, 3])  # Should not raise
+
+    def test_fallback_skips_invalid_ids(self):
+        """H7 FIX: fallback path skips invalid IDs, doesn't send malformed packets."""
+        driver = STS3215Driver()
+        driver._mock_mode = False
+        packets_sent = []
+        call_count = 0
+
+        def capture_transact(packet, expect_response=True):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("broadcast failed")
+            packets_sent.append(packet)
+            return b''
+
+        driver._transact = capture_transact
+        # Mix valid and invalid IDs
+        driver.torque_disable_all([2, -1, 254, 3, "bad"])
+        # Only IDs 2 and 3 should produce packets (broadcast + 2 valid = 3 calls)
+        assert len(packets_sent) == 2
+        assert packets_sent[0][2] == 2  # First valid ID
+        assert packets_sent[1][2] == 3  # Second valid ID
 
 
 # ============================================================

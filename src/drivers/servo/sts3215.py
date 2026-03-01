@@ -22,7 +22,7 @@ Position encoding:
 Velocity enforcement: NOT implemented (positional limits only).
 Pending design decision on velocity profile approach.
 
-Hostile review (Day 48): 3C + 5H found and fixed.
+Hostile review #1 (Day 48): 3C + 5H found and fixed.
 - C1: torque_disable_all uses BROADCAST ID 254 (<1ms vs 960ms)
 - C2: mock_mode check moved inside lock (TOCTOU fix)
 - C3: assert replaced with IOError (survives -O flag)
@@ -31,6 +31,12 @@ Hostile review (Day 48): 3C + 5H found and fixed.
 - H3: SerialException caught in _transact, wrapped as IOError
 - H4: deinit acquires lock before closing port
 - H5: removed fixed 10ms sleep, rely on serial timeout
+
+Hostile review #2 (Day 48): 2C + 2H found and fixed.
+- C4: _validate_response uses LENGTH field for response boundary (not resp[-1])
+- C5: ping() validates response (was accepting any bytes as success)
+- H6: set_position/torque_enable/torque_disable validate response error byte
+- H7: torque_disable_all fallback clamps servo IDs to [0, 253]
 
 Created: Day 48, 3 March 2026
 """
@@ -219,10 +225,17 @@ class STS3215Driver:
         return self.HEADER + bytes(packet + [cs])
 
     def _validate_response(self, resp: bytes, expected_id: int, min_len: int) -> None:
-        """Validate SCS response: header, ID, checksum, error byte.
+        """Validate SCS response: header, ID, LENGTH, checksum, error byte.
+
+        C4 FIX: Uses the LENGTH field (resp[3]) to determine the actual
+        response boundary, not resp[-1]. This is critical on multi-servo
+        buses where serial.read(20) may return trailing garbage bytes.
+
+        Response format: [0xFF 0xFF] [ID] [LEN] [ERR] [DATA...] [CS]
+        Total bytes = 3 + LEN  (header:2 + ID:1 + LEN bytes including CS)
 
         Args:
-            resp: Raw response bytes.
+            resp: Raw response bytes (may contain trailing garbage).
             expected_id: Servo ID we sent the command to.
             min_len: Minimum expected response length.
 
@@ -242,14 +255,27 @@ class STS3215Driver:
             raise IOError(
                 f"STS3215 ID {expected_id}: ID mismatch (got {resp[2]})"
             )
-        # Validate checksum: bytes [2:-1] are payload, [-1] is checksum
-        payload = list(resp[2:-1])
-        if self._checksum(payload) != resp[-1]:
+        # Use LENGTH field to determine actual response boundary.
+        # Response: [FF FF] [ID] [LEN] [ERR] [DATA...] [CS]
+        # LEN counts bytes from ERR to CS inclusive.
+        # Total valid bytes = 4 + LEN (2 header + ID + LEN + LEN payload).
+        # Checksum is at index 3 + LEN (last valid byte).
+        resp_len_field = resp[3]
+        cs_index = 3 + resp_len_field  # Index of checksum byte
+        if cs_index >= len(resp):
+            raise IOError(
+                f"STS3215 ID {expected_id}: LENGTH field ({resp_len_field}) "
+                f"exceeds response size ({len(resp)})"
+            )
+        # Checksum over [ID, LEN, ERR, DATA...] (everything between header and CS)
+        cs_byte = resp[cs_index]
+        payload = list(resp[2:cs_index])  # ID + LEN + ERR + DATA (excludes CS)
+        if self._checksum(payload) != cs_byte:
             raise IOError(
                 f"STS3215 ID {expected_id}: checksum mismatch"
             )
         # Check error byte (byte index 4 in response)
-        if len(resp) > 4 and resp[4] != 0:
+        if resp[4] != 0:
             raise IOError(
                 f"STS3215 ID {expected_id}: servo error flags 0x{resp[4]:02x}"
             )
@@ -302,11 +328,15 @@ class STS3215Driver:
     def ping(self, servo_id: int) -> bool:
         """Check if a servo is responding on the bus.
 
+        C5 FIX: Validates response header, ID, and checksum. Previously
+        accepted any non-empty bytes as success, causing false positives
+        from stale bus responses on multi-servo buses.
+
         Args:
             servo_id: Target servo ID (0-253).
 
         Returns:
-            True if servo responded, False otherwise.
+            True if servo responded with valid packet, False otherwise.
         """
         self._validate_servo_id(servo_id)
         if self._mock_mode:
@@ -314,9 +344,13 @@ class STS3215Driver:
         packet = self._build_ping_packet(servo_id)
         try:
             resp = self._transact(packet)
+            if len(resp) == 0:
+                return False
+            # Ping response: FF FF ID 02 00 CS = 6 bytes minimum
+            self._validate_response(resp, servo_id, min_len=6)
+            return True
         except IOError:
             return False
-        return len(resp) > 0
 
     def scan_bus(self, id_range: Optional[range] = None) -> list[int]:
         """Scan bus for responding servos.
@@ -388,11 +422,16 @@ class STS3215Driver:
         packet = self._build_write2_packet(servo_id, self.GOAL_POSITION_ADDR, raw)
         resp = self._transact(packet)
         if len(resp) == 0:
-            # H2 FIX: log warning on silent failure
             logger.warning(
                 "STS3215 ID %d: no response to set_position(%.1f deg)",
                 servo_id, degrees
             )
+            return False
+        # H6 FIX: validate write response (catches servo error flags)
+        try:
+            self._validate_response(resp, servo_id, min_len=6)
+        except IOError as e:
+            logger.warning("STS3215 ID %d: set_position response error: %s", servo_id, e)
             return False
         return True
 
@@ -445,7 +484,7 @@ class STS3215Driver:
             servo_id: Target servo ID (0-253).
 
         Returns:
-            True if command sent successfully.
+            True if command sent and acknowledged without error.
         """
         self._validate_servo_id(servo_id)
         if self._mock_mode:
@@ -453,7 +492,13 @@ class STS3215Driver:
 
         packet = self._build_write1_packet(servo_id, self.TORQUE_ENABLE_ADDR, 1)
         resp = self._transact(packet)
-        return len(resp) >= 6  # Minimum valid SCS response
+        if len(resp) < 6:
+            return False
+        try:
+            self._validate_response(resp, servo_id, min_len=6)
+        except IOError:
+            return False
+        return True
 
     def torque_disable(self, servo_id: int) -> bool:
         """Disable torque (servo goes limp) on a single servo.
@@ -462,7 +507,7 @@ class STS3215Driver:
             servo_id: Target servo ID (0-253).
 
         Returns:
-            True if command sent successfully.
+            True if command sent and acknowledged without error.
         """
         self._validate_servo_id(servo_id)
         if self._mock_mode:
@@ -470,7 +515,13 @@ class STS3215Driver:
 
         packet = self._build_write1_packet(servo_id, self.TORQUE_ENABLE_ADDR, 0)
         resp = self._transact(packet)
-        return len(resp) >= 6
+        if len(resp) < 6:
+            return False
+        try:
+            self._validate_response(resp, servo_id, min_len=6)
+        except IOError:
+            return False
+        return True
 
     def torque_disable_all(self, servo_ids: list[int]) -> None:
         """Disable torque on all servos using BROADCAST for minimum latency.
@@ -500,7 +551,11 @@ class STS3215Driver:
             logger.error("torque_disable_all: broadcast failed: %s, trying individual", e)
 
         # Fallback: individual disable (slower but more robust)
+        # H7 FIX: skip invalid IDs to prevent malformed packets on bus
         for sid in servo_ids:
+            if not isinstance(sid, int) or not 0 <= sid <= 253:
+                logger.error("torque_disable_all: skipping invalid ID %r", sid)
+                continue
             try:
                 packet = self._build_write1_packet(sid, self.TORQUE_ENABLE_ADDR, 0)
                 self._transact(packet, expect_response=False)

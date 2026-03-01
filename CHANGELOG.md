@@ -11,7 +11,7 @@
 ### Day 48 - Monday, 3 March 2026
 
 **Focus:** STS3215 Serial Bus Servo Driver (Software Only)
-**Status:** ✅ COMPLETE — Driver written, hostile reviewed (3C+5H fixed), 105 tests passing
+**Status:** ✅ COMPLETE — Driver written, 2× hostile reviewed (5C+7H fixed), 111 tests passing
 
 #### Task 1: Buy battery charger
 - Status: PENDING (physical task, user to complete)
@@ -56,6 +56,16 @@
   - H4: `deinit()` sets `_serial=None` without lock. Fixed: under lock
   - H5: Fixed 10ms sleep wasted per transaction. Fixed: rely on serial timeout
 - **3 MEDIUM fixed:** M2 truncation bias (round not int), M6 torque return check (>=6 bytes), M5 context manager
+- Status: COMPLETE
+
+#### Task 7: Second hostile review of sts3215.py
+- **2 CRITICAL found and fixed:**
+  - C4: `_validate_response` used `resp[-1]` instead of LENGTH field — trailing garbage from multi-servo bus breaks checksum. Fixed: use `resp[3]` (LENGTH field) to compute checksum index
+  - C5: `ping()` accepted any non-empty bytes as success. Fixed: validates response with `_validate_response()`
+- **2 HIGH found and fixed:**
+  - H6: `set_position`, `torque_enable`, `torque_disable` never validated error byte in response. Fixed: added `_validate_response` with try/except
+  - H7: `torque_disable_all` fallback sent packets for invalid IDs (non-int, out of range). Fixed: validates `isinstance(sid, int) and 0 <= sid <= 253`
+- Tests: 105 → 111 passing (6 new tests for review #2 findings)
 - Status: COMPLETE
 
 #### Task 6: Write HW validation script for Day 49
