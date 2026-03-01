@@ -1,8 +1,68 @@
 # OpenDuck Mini V3 - Development Changelog
 
 **Project Start:** 15 January 2026
-**Current Week:** Week 07 (24 Feb - 2 Mar) - Hardware Integration & Assembly
+**Current Week:** Week 08 (3-9 Mar) - STS3215 Driver + End-to-End Stack + First Prints
 **Target Completion:** Week 01 = 55-60%, Full Project = 8 weeks
+
+---
+
+## Week 08: STS3215 Driver + End-to-End Stack + First Prints (3-9 Mar 2026)
+
+### Day 48 - Monday, 3 March 2026
+
+**Focus:** STS3215 Serial Bus Servo Driver (Software Only)
+**Status:** ✅ COMPLETE — Driver written, hostile reviewed (3C+5H fixed), 105 tests passing
+
+#### Task 1: Buy battery charger
+- Status: PENDING (physical task, user to complete)
+
+#### Task 2: Write STS3215 driver
+- File: `firmware/src/drivers/servo/sts3215.py` (~320 lines)
+- Protocol: SCS serial (0xFF 0xFF header, checksum, little-endian)
+- Extracted from validated `firmware/scripts/test_sts3215.py`
+- Features:
+  - Mock mode: `try: import serial` — all methods work without hardware
+  - Thread safety: single `threading.Lock()` for all serial I/O
+  - Port validation: regex whitelist (`/dev/ttyUSB*`, `/dev/ttyACM*`, `COM*`)
+  - `torque_disable_all()`: BROADCAST ID 254 for <1ms e-stop latency
+  - Response validation: header, ID, checksum, error byte
+  - Degrees-to-raw: `raw = round(degrees * 4096 / 360)`, clamped [0, 4095]
+  - Context manager support (`with STS3215Driver() as d:`)
+- Public API: ping, scan_bus, read_position, set_position, read_voltage,
+  read_temperature, torque_enable, torque_disable, torque_disable_all, deinit
+- Status: COMPLETE
+
+#### Task 3: Write STS3215 tests
+- File: `firmware/tests/test_drivers/test_sts3215.py` (~530 lines)
+- Tests: 105 passing (config, checksum, conversion, packets, response validation,
+  mock mode, HW mode with mocked serial, servo ID/position validation,
+  torque_disable_all broadcast + fallback, thread safety incl. lock verification,
+  context manager, edge cases)
+- Status: COMPLETE
+
+#### Task 4: Update servo __init__.py
+- Added `STS3215Config`, `STS3215Driver` to `firmware/src/drivers/servo/__init__.py`
+- Status: COMPLETE
+
+#### Task 5: Hostile review of sts3215.py (anticipated from Day 49)
+- **3 CRITICAL found and fixed:**
+  - C1: `torque_disable_all` used individual disable (~960ms). Fixed: broadcast ID 254 (<1ms)
+  - C2: `_mock_mode` check outside lock (TOCTOU race). Fixed: check inside lock
+  - C3: `assert self._serial` stripped by `python -O`. Fixed: proper IOError
+- **5 HIGH found and fixed:**
+  - H1: No response checksum validation. Fixed: `_validate_response()` checks header/ID/checksum/error
+  - H2: `set_position` silent failure. Fixed: logs warning, returns False
+  - H3: Unhandled `SerialException`. Fixed: wrapped as IOError in `_transact`
+  - H4: `deinit()` sets `_serial=None` without lock. Fixed: under lock
+  - H5: Fixed 10ms sleep wasted per transaction. Fixed: rely on serial timeout
+- **3 MEDIUM fixed:** M2 truncation bias (round not int), M6 torque return check (>=6 bytes), M5 context manager
+- Status: COMPLETE
+
+#### Task 6: Write HW validation script for Day 49
+- File: `firmware/scripts/validate_sts3215.py` (~280 lines)
+- 6-phase validation: bus scan, telemetry, single move, multi move, broadcast e-stop, concurrent threads
+- Ready to `scp` to Pi and run
+- Status: COMPLETE
 
 ---
 
