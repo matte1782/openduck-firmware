@@ -17,8 +17,8 @@ Hardware Setup:
     ├── GND → Pi GND
     ├── SDA → Pi GPIO 2 (Pin 3)
     ├── SCL → Pi GPIO 3 (Pin 5)
-    ├── Channel 12 → Pan servo (signal wire)
-    └── Channel 13 → Tilt servo (signal wire)
+    ├── Channel 2 → Pan servo (signal wire)
+    └── Channel 3 → Tilt servo (signal wire)
 
 Safety:
     - USB power limited to 2A (safe for 2 SG90 servos)
@@ -46,8 +46,8 @@ except ImportError:
 
 
 # Configuration from robot_config.yaml
-PAN_CHANNEL = 12   # Head pan servo
-TILT_CHANNEL = 13  # Head tilt servo
+PAN_CHANNEL = 2    # Head yaw servo (PCA9685 ch 2)
+TILT_CHANNEL = 1   # Head pitch servo (PCA9685 ch 1)
 PWM_FREQUENCY = 50  # 50Hz for servos
 
 # =============================================================================

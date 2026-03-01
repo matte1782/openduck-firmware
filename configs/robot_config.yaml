@@ -12,10 +12,10 @@ head:
 
   # 4-DOF Head Configuration (V2-compatible)
   # Matches Open_Duck_Mini V2 simulation for direct policy deployment
-  neck_pitch_channel: 10    # PCA9685 ch 10 - MG90S #1 - Base neck up/down
-  head_pitch_channel: 11    # PCA9685 ch 11 - MG90S #2 - Head nod forward/back
-  head_yaw_channel: 12      # PCA9685 ch 12 - MG90S #3 - Head rotate left/right
-  head_roll_channel: 13     # PCA9685 ch 13 - MG90S #4 - Head tilt side-to-side (Pixar secret!)
+  neck_pitch_channel: 0     # PCA9685 ch 0 - MG90S #1 - Base neck up/down
+  head_pitch_channel: 1     # PCA9685 ch 1 - MG90S #2 - Head nod forward/back
+  head_yaw_channel: 2       # PCA9685 ch 2 - MG90S #3 - Head rotate left/right
+  head_roll_channel: 3      # PCA9685 ch 3 - MG90S #4 - Head tilt side-to-side (Pixar secret!)
 
   limits:
     # Neck pitch (base movement) - From V2 XML line 223

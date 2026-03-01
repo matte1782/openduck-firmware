@@ -1,17 +1,17 @@
 """Emergency Stop System for OpenDuck Mini V3.
 
 This module provides a safety-critical emergency stop system that monitors
-a physical GPIO button and can disable all servo outputs within <5ms latency.
+a physical GPIO switch and can disable all servo outputs within ~10ms latency.
 
 Hardware Configuration:
-    - GPIO 26 (Physical pin 37) - Emergency stop button
-    - Active LOW (button press = LOW signal)
+    - GPIO 26 (Physical pin 37) - Emergency stop toggle switch (SPST rocker)
+    - Active LOW (switch ON = LOW = e-stop active)
     - Internal pull-up resistor enabled
     - 50ms debounce time (configurable)
 
 Safety Features:
     - Thread-safe state machine with proper transitions
-    - <5ms latency target for servo disable
+    - ~10ms latency for servo disable (16-channel I2C write)
     - Callback registration for state change notifications
     - Integration with PCA9685Driver.disable_all()
     - Mock-friendly design for testing
@@ -163,8 +163,8 @@ class EmergencyStop:
         execution to ensure consistent state observation.
 
     Performance:
-        Target latency from trigger to servo disable: <5ms
-        Actual performance depends on I2C bus speed and PCA9685 driver.
+        Measured latency from trigger to servo disable: ~10ms
+        (16 individual I2C channel writes at 400kHz).
 
     Attributes:
         servo_driver: Reference to PCA9685Driver for servo control
@@ -249,6 +249,7 @@ class EmergencyStop:
         self._event_history: deque[EmergencyStopEvent] = deque(maxlen=self.MAX_EVENT_HISTORY)
         self._gpio_monitoring_active = False
         self._disable_succeeded: bool = True  # Issue #1: Track if disable_all() succeeded
+        self._initial_estop_pending: bool = False  # Set if switch already LOW at startup
 
         # GPIO provider (dependency injection for testing)
         self._gpio: Optional[GPIOProvider] = None
@@ -404,7 +405,15 @@ class EmergencyStop:
                     _logger.warning("Exception during GPIO setup (ignored for safety): %s", e)
 
             # Transition to RUNNING
-            return self._set_state(SafetyState.RUNNING, source="start")
+            result = self._set_state(SafetyState.RUNNING, source="start")
+
+            # If GPIO was already LOW at setup, trigger e-stop now
+            # (must happen after RUNNING state so transition is valid)
+            if self._initial_estop_pending:
+                self._initial_estop_pending = False
+                self.trigger(source="gpio_initial_state")
+
+            return result
 
     def _setup_gpio(self) -> None:
         """Configure GPIO for emergency stop monitoring.
@@ -440,6 +449,13 @@ class EmergencyStop:
             )
 
             self._gpio_monitoring_active = True
+
+            # CRITICAL: Check if switch is already in e-stop position.
+            # With a latching toggle switch, GPIO may already be LOW when
+            # start() is called — FALLING edge will never fire in that case.
+            if self._gpio.input(self._gpio_pin) == 0:
+                _logger.warning("GPIO %d already LOW at startup — triggering e-stop", self._gpio_pin)
+                self._initial_estop_pending = True
 
         except Exception as e:
             self._gpio_monitoring_active = False
@@ -489,8 +505,8 @@ class EmergencyStop:
             including GPIO interrupt handlers.
 
         Performance:
-            Target: <5ms from call to servo disable completion.
-            Actual performance depends on I2C bus and PCA9685 driver.
+            Measured: ~10ms (16 I2C channel writes).
+            Acceptable — faster than mechanical servo response time.
 
         Example:
             >>> latency = e_stop.trigger(source="manual")

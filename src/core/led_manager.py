@@ -92,7 +92,7 @@ class LEDController:
     def __init__(
         self,
         num_pixels: int = 16,
-        left_pin: int = 18,
+        left_pin: int = 10,
         right_pin: int = 13,
         target_fps: int = 50,
         brightness: int = 128,
@@ -102,7 +102,7 @@ class LEDController:
 
         Args:
             num_pixels: Number of LEDs per ring (default: 16)
-            left_pin: GPIO pin for left eye (default: 18)
+            left_pin: GPIO pin for left eye (default: 10, SPI MOSI - no I2S conflict)
             right_pin: GPIO pin for right eye (default: 13)
             target_fps: Target refresh rate (default: 50Hz)
             brightness: Overall brightness 0-255 (default: 128)

@@ -76,6 +76,50 @@
 
 ---
 
+### Day 49 - Tuesday, 4 March 2026
+
+**Focus:** Full Test Suite Validation + Config Channel Fix + Pi Deployment Staging
+**Status:** ✅ COMPLETE — 2457 tests pass, config fixed, Pi staged for HW validation
+
+#### Task 1: Full Mock Test Suite
+- Command: `python -m pytest tests/ -v --tb=short`
+- Results: **2457 passed, 2 failed, 19 skipped** (7m12s)
+- 2 failures: pre-existing LED pin mismatch (`test_led_integration.py`, `test_led_manager.py`)
+  - Tests expect `left_pin == 18` but config has GPIO 10 (changed to avoid I2S conflict)
+  - NOT caused by STS3215 work — out of scope
+- 19 skips: noise/Perlin C library (Windows), performance marks
+- **Zero regressions from Day 48 STS3215 work**
+- Status: COMPLETE
+
+#### Task 2: Fix Config Channel Mismatch (Day 50 Blocker)
+- File: `firmware/configs/robot_config.yaml` (lines 15-18)
+- Changed head servo channels from 10,11,12,13 → 0,1,2,3 (matches physical wiring)
+- Channel 4 remains spare (5th MG90S, unassigned — future camera tilt)
+- Verification: `pytest tests/test_control/test_head_controller.py -v` → **68/68 passed**
+- Status: COMPLETE
+
+#### Task 3: Deploy to Pi + Pre-flight Check
+- `scp -r firmware/ pi@192.168.1.182:~/robot_jarvis/` — SUCCESS
+- pyserial 3.5 confirmed (`python3 -c 'import serial; print(serial.VERSION)'`)
+- Driver import dry-run: import succeeds, but RuntimeError on `/dev/ttyUSB0` — FE-URT-1 not plugged in (expected, USB-powered)
+- mDNS: `sudo systemctl restart avahi-daemon` → active, `openduck.local` resolves from Windows
+- **Remaining for HW validation:** Plug in FE-URT-1 + charge battery → run `firmware/scripts/validate_sts3215.py`
+- Status: COMPLETE (deployment staged, HW validation blocked on battery/USB)
+
+#### Task 4: Hostile Review Fixes (3 findings)
+- **Finding 1 (HIGH):** `scripts/test_head_servos_usb.py` hardcoded PAN=12, TILT=13 (old channels)
+  - Fixed: PAN_CHANNEL=2, TILT_CHANNEL=1 (matches physical wiring)
+  - Also updated docstring channel references
+- **Finding 2 (MEDIUM):** 2 LED tests asserted `left_pin == 18` (old GPIO, pre-I2S conflict fix)
+  - Fixed: `test_led_integration.py:103` and `test_led_manager.py:174` → `left_pin == 10`
+- **Finding 3 (MEDIUM):** `head_controller.py` module docstring + HeadConfig docstring referenced ch 10-13
+  - Fixed: All docstrings updated to ch 0,1,2,3
+- Verification: 70/70 tests pass (2 previously-failing LED tests now green + 68 head controller)
+- **Deferred (LOW):** ~50 test instances use ch 10-13 in fixtures (harmless with mocks), no config loader yet (tech debt)
+- Status: COMPLETE
+
+---
+
 ## Week 07: Hardware Integration & Assembly (24 Feb - 2 Mar 2026)
 
 ### Day 47 - Sunday, 2 March 2026

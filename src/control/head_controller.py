@@ -7,10 +7,10 @@ using the 12 Disney Animation Principles for natural, appealing motion.
 
 4-DOF Configuration (V2-Compatible):
 ------------------------------------
-- neck_pitch: Base neck up/down movement (PCA9685 ch 10)
-- head_pitch: Head nod forward/back (PCA9685 ch 11)
-- head_yaw: Head rotate left/right (PCA9685 ch 12)
-- head_roll: Head tilt side-to-side (PCA9685 ch 13) - "Pixar secret!"
+- neck_pitch: Base neck up/down movement (PCA9685 ch 0)
+- head_pitch: Head nod forward/back (PCA9685 ch 1)
+- head_yaw: Head rotate left/right (PCA9685 ch 2)
+- head_roll: Head tilt side-to-side (PCA9685 ch 3) - "Pixar secret!"
 
 Disney 12 Principles Applied:
 ---------------------------------------------------------------------------
@@ -187,10 +187,10 @@ class HeadConfig:
     """Configuration for 4-DOF HeadController.
 
     Attributes:
-        neck_pitch_channel: PCA9685 channel for neck pitch servo (0-15, default: 10)
-        head_pitch_channel: PCA9685 channel for head pitch servo (0-15, default: 11)
-        head_yaw_channel: PCA9685 channel for head yaw servo (0-15, default: 12)
-        head_roll_channel: PCA9685 channel for head roll servo (0-15, default: 13)
+        neck_pitch_channel: PCA9685 channel for neck pitch servo (0-15)
+        head_pitch_channel: PCA9685 channel for head pitch servo (0-15)
+        head_yaw_channel: PCA9685 channel for head yaw servo (0-15)
+        head_roll_channel: PCA9685 channel for head roll servo (0-15)
         limits: HeadLimits instance defining movement bounds
         neck_pitch_inverted: If True, invert neck pitch servo direction
         head_pitch_inverted: If True, invert head pitch servo direction
@@ -201,10 +201,10 @@ class HeadConfig:
 
     Example:
         >>> config = HeadConfig(
-        ...     neck_pitch_channel=10,
-        ...     head_pitch_channel=11,
-        ...     head_yaw_channel=12,
-        ...     head_roll_channel=13
+        ...     neck_pitch_channel=0,
+        ...     head_pitch_channel=1,
+        ...     head_yaw_channel=2,
+        ...     head_roll_channel=3
         ... )
         >>> config.default_speed_ms
         300
@@ -346,10 +346,10 @@ class HeadController:
         >>> from src.drivers.servo.pca9685 import PCA9685Driver
         >>> driver = PCA9685Driver()
         >>> config = HeadConfig(
-        ...     neck_pitch_channel=10,
-        ...     head_pitch_channel=11,
-        ...     head_yaw_channel=12,
-        ...     head_roll_channel=13
+        ...     neck_pitch_channel=0,
+        ...     head_pitch_channel=1,
+        ...     head_yaw_channel=2,
+        ...     head_roll_channel=3
         ... )
         >>> head = HeadController(driver, config)
         >>> head.move_to(neck_pitch=10, head_pitch=0, head_yaw=30, head_roll=5)

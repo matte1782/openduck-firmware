@@ -38,7 +38,6 @@ import pytest
 class TestEmotionState:
     """Tests for EmotionState enum or class."""
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_states_defined(self):
         """All standard emotion states are defined."""
         from src.emotion.states import EmotionState
@@ -50,7 +49,6 @@ class TestEmotionState:
         assert hasattr(EmotionState, 'ALERT')
         assert hasattr(EmotionState, 'ERROR')
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_state_unique_values(self):
         """Each emotion state has unique value."""
         from src.emotion.states import EmotionState
@@ -66,7 +64,6 @@ class TestEmotionState:
         # All values should be unique
         assert len(states) == len(set(states))
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_state_string_representation(self):
         """Emotion states have readable string representations."""
         from src.emotion.states import EmotionState
@@ -82,7 +79,6 @@ class TestEmotionState:
 class TestEmotionConfig:
     """Tests for emotion configuration dataclass."""
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_config_defaults(self, emotion_config):
         """EmotionConfig has sensible defaults."""
         from src.emotion.config import EmotionConfig
@@ -91,7 +87,6 @@ class TestEmotionConfig:
         assert config.transition_duration_ms > 0
         assert 0.0 <= config.default_brightness <= 1.0
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_config_custom_values(self):
         """EmotionConfig accepts custom values."""
         from src.emotion.config import EmotionConfig
@@ -106,7 +101,6 @@ class TestEmotionConfig:
         assert config.idle_timeout_ms == 10000
         assert config.default_brightness == 0.5
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_config_validates_brightness(self):
         """EmotionConfig validates brightness range."""
         from src.emotion.config import EmotionConfig
@@ -126,7 +120,6 @@ class TestEmotionConfig:
 class TestEmotionStateMachine:
     """Tests for main emotion state machine."""
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_state_machine_initialization(self, mock_led_controller,
                                           mock_servo_controller, emotion_config):
         """State machine initializes in IDLE state."""
@@ -142,7 +135,6 @@ class TestEmotionStateMachine:
         assert sm.current_state == EmotionState.IDLE
         assert not sm.is_transitioning()
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_transition_to_new_state(self, mock_led_controller,
                                      mock_servo_controller, emotion_definitions):
         """Transition to new state triggers LED and servo changes."""
@@ -164,7 +156,6 @@ class TestEmotionStateMachine:
         # Should call servo controller
         mock_servo_controller.set_position.assert_called()
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_transition_timing(self, mock_led_controller,
                                 mock_servo_controller, emotion_config):
         """Transition completes within configured duration."""
@@ -193,10 +184,9 @@ class TestEmotionStateMachine:
         # Should complete within configured time (allow 10% tolerance)
         assert elapsed_ms < config['transition_duration_ms'] * 1.1
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
-    def test_cannot_transition_during_transition(self, mock_led_controller,
-                                                  mock_servo_controller):
-        """Cannot change state while transitioning."""
+    def test_can_override_transition_during_transition(self, mock_led_controller,
+                                                        mock_servo_controller):
+        """New emotion overrides current transition (responsive design)."""
         from src.emotion.state_machine import EmotionStateMachine
         from src.emotion.states import EmotionState
 
@@ -205,14 +195,15 @@ class TestEmotionStateMachine:
             servo_controller=mock_servo_controller
         )
 
-        # Start transition
+        # Start transition to HAPPY
         sm.set_emotion(EmotionState.HAPPY)
 
-        # Try to transition again immediately
-        with pytest.raises(RuntimeError, match="transition in progress"):
-            sm.set_emotion(EmotionState.ALERT)
+        # Override with ALERT (should succeed, not raise)
+        sm.set_emotion(EmotionState.ALERT)
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
+        # Should now be in ALERT state
+        assert sm.get_current_emotion() == EmotionState.ALERT
+
     def test_same_state_is_noop(self, mock_led_controller,
                                  mock_servo_controller):
         """Setting same state twice is no-op."""
@@ -230,7 +221,6 @@ class TestEmotionStateMachine:
         # Should not trigger changes
         mock_led_controller.set_pattern.assert_not_called()
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_intensity_modulation(self, mock_led_controller,
                                    mock_servo_controller):
         """Intensity parameter modulates emotion expression."""
@@ -256,7 +246,6 @@ class TestEmotionStateMachine:
         # Should have called brightness setter with different values
         assert high_intensity_calls > low_intensity_calls
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_update_progresses_transition(self, mock_led_controller,
                                           mock_servo_controller):
         """update() progresses transition animation."""
@@ -283,7 +272,6 @@ class TestEmotionStateMachine:
         assert initial_transitioning is True
         assert final_transitioning is False
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_get_current_emotion(self, mock_led_controller,
                                   mock_servo_controller):
         """get_current_emotion() returns current state."""
@@ -302,7 +290,6 @@ class TestEmotionStateMachine:
 
         assert sm.get_current_emotion() == EmotionState.THINKING
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_auto_return_to_idle(self, mock_led_controller,
                                   mock_servo_controller, emotion_config):
         """After idle_timeout, returns to IDLE state."""
@@ -340,7 +327,6 @@ class TestEmotionStateMachine:
 class TestEmotionDefinitions:
     """Tests for emotion definition mappings."""
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_all_standard_emotions_defined(self, emotion_definitions):
         """All standard emotions have definitions."""
         from src.emotion.definitions import EMOTION_DEFINITIONS
@@ -350,7 +336,6 @@ class TestEmotionDefinitions:
         for emotion in required_emotions:
             assert emotion in EMOTION_DEFINITIONS
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_definition_has_required_fields(self):
         """Each emotion definition has required fields."""
         from src.emotion.definitions import EMOTION_DEFINITIONS
@@ -362,7 +347,6 @@ class TestEmotionDefinitions:
                 assert field in definition, \
                     f"Emotion '{emotion_name}' missing field '{field}'"
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_colors_valid_rgb(self):
         """All emotion colors are valid RGB tuples."""
         from src.emotion.definitions import EMOTION_DEFINITIONS
@@ -375,7 +359,6 @@ class TestEmotionDefinitions:
                 assert 0 <= channel <= 255, \
                     f"Invalid color channel in '{emotion_name}': {channel}"
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_speeds_positive(self):
         """All emotion speeds are positive."""
         from src.emotion.definitions import EMOTION_DEFINITIONS
@@ -392,7 +375,6 @@ class TestEmotionDefinitions:
 class TestEmotionErrorHandling:
     """Tests for error handling and recovery."""
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_invalid_emotion_state_raises(self, mock_led_controller,
                                           mock_servo_controller):
         """Setting invalid emotion state raises ValueError."""
@@ -406,7 +388,6 @@ class TestEmotionErrorHandling:
         with pytest.raises(ValueError, match="Invalid emotion"):
             sm.set_emotion("INVALID_EMOTION")
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_led_controller_failure_handled(self, mock_servo_controller):
         """LED controller failure doesn't crash state machine."""
         from src.emotion.state_machine import EmotionStateMachine
@@ -425,7 +406,6 @@ class TestEmotionErrorHandling:
         sm.set_emotion(EmotionState.HAPPY)
         sm.update()
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_servo_controller_failure_handled(self, mock_led_controller):
         """Servo controller failure doesn't crash state machine."""
         from src.emotion.state_machine import EmotionStateMachine
@@ -452,7 +432,6 @@ class TestEmotionErrorHandling:
 class TestEmotionSystemPerformance:
     """Performance tests for emotion system."""
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_state_transition_fast(self, mock_led_controller,
                                     mock_servo_controller):
         """State transition initiation is fast (<50ms)."""
@@ -473,7 +452,6 @@ class TestEmotionSystemPerformance:
         assert elapsed_ms < 50, \
             f"State transition too slow: {elapsed_ms:.2f}ms"
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_update_fast(self, mock_led_controller,
                          mock_servo_controller):
         """update() call is fast (<10ms)."""
@@ -507,7 +485,6 @@ class TestEmotionSystemPerformance:
 class TestEmotionSystemIntegration:
     """Integration tests for complete emotion workflows."""
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_emotion_sequence(self, mock_led_controller,
                                mock_servo_controller):
         """Can sequence through multiple emotions."""
@@ -532,7 +509,6 @@ class TestEmotionSystemIntegration:
             sm.wait_for_transition()
             assert sm.get_current_emotion() == emotion
 
-    @pytest.mark.skip(reason="Implementation pending - Sunday 19 Jan")
     def test_rapid_emotion_changes(self, mock_led_controller,
                                     mock_servo_controller):
         """Handle rapid emotion changes gracefully."""

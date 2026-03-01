@@ -23,16 +23,22 @@ Connections (per COMPLETE_PIN_DIAGRAM_V3.md):
     - GND              -> GND (Pi Pin 6, 9, 14, etc.)
 
 Key Features:
-    - 16000 Hz sample rate (configured for voice recognition)
-    - 16-bit sample depth
+    - 48000 Hz sample rate (native I2S rate, resampled if needed)
+    - 32-bit capture from I2S, converted to int16 for processing
     - Mono capture (single microphone)
     - Thread-safe operation with proper locking
     - dB level calculation for volume detection
     - Configurable gain and buffer sizes
+    - Uses ALSA arecord subprocess (no PortAudio dependency)
 
 Thread Safety:
     All operations use internal locking to prevent race conditions during
     audio capture and buffer access. Safe for multi-threaded applications.
+
+Backend:
+    Uses ``arecord`` subprocess with ALSA backend. This avoids the PortAudio
+    dependency (not available on Debian Trixie/Bookworm aarch64).
+    Validated on Raspberry Pi 5 with I2S overlay ``googlevoicehat-soundcard``.
 
 Example:
     ```python
@@ -42,7 +48,7 @@ Example:
     mic = INMP441Driver()
 
     # Or with custom configuration
-    config = INMP441Config(sample_rate=16000, gain=1.5)
+    config = INMP441Config(sample_rate=48000, gain=1.5)
     mic = INMP441Driver(config=config)
 
     # Start capturing audio
@@ -66,33 +72,23 @@ Note:
 """
 
 import math
+import re
 import time
+import shutil
+import subprocess
 import threading
 import queue
 from dataclasses import dataclass, field
 from typing import Optional, Callable, Any
 from enum import Enum
 
+# Whitelist pattern for ALSA device names (e.g. "plughw:3,0", "hw:1", "default")
+_ALSA_DEVICE_RE = re.compile(r'^[\w:.,\-]{1,64}$')
+
 try:
     import numpy as np
 except ImportError:
     np = None  # type: ignore
-
-# I2S library imports - platform specific
-try:
-    # Attempt to import sounddevice for cross-platform I2S/audio support
-    import sounddevice as sd
-    SOUNDDEVICE_AVAILABLE = True
-except ImportError:
-    sd = None  # type: ignore
-    SOUNDDEVICE_AVAILABLE = False
-
-try:
-    # Alternative: direct I2S via pyaudio with ALSA backend
-    # Note: Using pyaudio through sounddevice abstraction is preferred
-    pass
-except ImportError:
-    pass
 
 
 class CaptureState(Enum):
@@ -114,7 +110,7 @@ class INMP441Config:
         channels: Number of audio channels. Fixed at 1 (mono).
         gain: Software gain multiplier (1.0 = unity gain).
         buffer_frames: Number of frames per buffer chunk.
-        device_index: Audio device index (None for default).
+        alsa_device: ALSA device string (default "plughw:3,0").
         timeout_seconds: Maximum wait time for operations.
         level_smoothing: Exponential smoothing factor for dB level (0-1).
 
@@ -127,12 +123,12 @@ class INMP441Config:
         )
         ```
     """
-    sample_rate: int = 16000
-    bit_depth: int = 16
+    sample_rate: int = 48000
+    bit_depth: int = 32
     channels: int = 1
     gain: float = 1.0
     buffer_frames: int = 512
-    device_index: Optional[int] = None
+    alsa_device: str = "plughw:3,0"
     timeout_seconds: float = 5.0
     level_smoothing: float = 0.3
 
@@ -143,9 +139,9 @@ class INMP441Config:
                 f"Invalid sample_rate {self.sample_rate}. "
                 f"Supported: 8000, 16000, 22050, 44100, 48000"
             )
-        if self.bit_depth != 16:
+        if self.bit_depth not in (16, 32):
             raise ValueError(
-                f"Invalid bit_depth {self.bit_depth}. Only 16-bit supported."
+                f"Invalid bit_depth {self.bit_depth}. Supported: 16, 32."
             )
         if self.channels != 1:
             raise ValueError(
@@ -163,6 +159,11 @@ class INMP441Config:
             raise ValueError(
                 f"Invalid level_smoothing {self.level_smoothing}. "
                 f"Must be between 0.0 and 1.0"
+            )
+        if not _ALSA_DEVICE_RE.match(self.alsa_device):
+            raise ValueError(
+                f"Invalid alsa_device '{self.alsa_device}'. "
+                "Must match [word chars, :., -], max 64 chars."
             )
 
 
@@ -232,14 +233,14 @@ class INMP441Driver:
         ```
     """
 
-    # Reference level for dB calculations (16-bit max amplitude)
+    # Reference level for dB calculations (used by calibrate_noise_floor with int16 data)
     REFERENCE_AMPLITUDE = 32768.0
 
     # Minimum dB floor to avoid log(0) issues
     DB_FLOOR = -96.0
 
-    # Maximum samples to buffer before dropping old data
-    MAX_BUFFER_SAMPLES = 48000  # 3 seconds at 16kHz
+    # Maximum samples to buffer (FIX MEDIUM-4: updated comment for 48kHz default)
+    MAX_BUFFER_SAMPLES = 48000  # 1 second at 48kHz (default sample rate)
 
     def __init__(
         self,
@@ -285,8 +286,9 @@ class INMP441Driver:
         # Audio buffer (thread-safe queue)
         self._sample_queue: queue.Queue = queue.Queue(maxsize=100)
 
-        # Stream reference
+        # Stream reference (subprocess.Popen or None)
         self._stream: Optional[Any] = None
+        self._closed = False  # FIX HIGH-4: guard for safe __del__
 
         # Validate dependencies
         if not mock_mode:
@@ -299,7 +301,7 @@ class INMP441Driver:
         """Validate that required libraries are available.
 
         Raises:
-            ImportError: If numpy or sounddevice not available.
+            ImportError: If numpy not available or arecord not found.
         """
         if np is None:
             raise ImportError(
@@ -307,17 +309,17 @@ class INMP441Driver:
                 "Install with: pip install numpy"
             )
 
-        if not SOUNDDEVICE_AVAILABLE and not self._mock_mode:
+        if shutil.which("arecord") is None:
             raise ImportError(
-                "sounddevice is required for audio capture. "
-                "Install with: pip install sounddevice"
+                "arecord (ALSA utils) is required for audio capture. "
+                "Install with: sudo apt install alsa-utils"
             )
 
     def _initialize_device(self):
         """Initialize audio capture device.
 
-        Configures the I2S input device for the specified sample rate
-        and buffer configuration.
+        Verifies the ALSA device is accessible by running a short
+        arecord probe.
 
         Raises:
             RuntimeError: If device initialization fails.
@@ -326,23 +328,26 @@ class INMP441Driver:
             return
 
         try:
-            # Query available devices
-            if sd is not None:
-                devices = sd.query_devices()
-                # Log available input devices for debugging
-                input_devices = [
-                    d for d in devices
-                    if d.get('max_input_channels', 0) > 0
-                ]
-
-                if not input_devices:
-                    raise RuntimeError(
-                        "No audio input devices found. "
-                        "Ensure I2S microphone is properly configured."
-                    )
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize audio device: {e}")
+            # Probe: capture 1 second to verify device is accessible
+            result = subprocess.run(
+                [
+                    "arecord", "-D", self.config.alsa_device,
+                    "-f", f"S{self.config.bit_depth}_LE",
+                    "-r", str(self.config.sample_rate),
+                    "-c", str(self.config.channels),
+                    "-d", "1", "-t", "raw", "-q"
+                ],
+                capture_output=True, timeout=5
+            )
+            if result.returncode != 0:
+                stderr = result.stderr.decode(errors="replace").strip()
+                raise RuntimeError(
+                    f"ALSA device {self.config.alsa_device} probe failed: {stderr}"
+                )
+        except FileNotFoundError:
+            raise RuntimeError("arecord not found on system")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("arecord device probe timed out")
 
     @property
     def is_capturing(self) -> bool:
@@ -463,6 +468,15 @@ class INMP441Driver:
         # Signal thread to stop
         self._stop_event.set()
 
+        # FIX CRITICAL-2: Terminate subprocess to unblock stdout.read()
+        with self._lock:
+            proc = self._stream
+        if proc is not None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
         # Wait for thread to finish (with timeout)
         if self._capture_thread is not None:
             self._capture_thread.join(timeout=self.config.timeout_seconds)
@@ -485,94 +499,118 @@ class INMP441Driver:
     def _capture_loop(self):
         """Main capture loop running in dedicated thread.
 
-        Reads audio samples from I2S interface and buffers them for
-        retrieval via read_samples().
+        Launches ``arecord`` as a subprocess and reads raw PCM from its
+        stdout pipe.  Chunks are converted to int16, level is computed,
+        and buffers are queued for ``read_samples()``.
         """
         if self._mock_mode:
             self._mock_capture_loop()
             return
 
+        proc = None
         try:
-            # Configure input stream
-            def audio_callback(indata, frames, callback_time, status):
-                """Callback for incoming audio data."""
-                if status:
-                    # Log status warnings (e.g., buffer overruns)
-                    pass
+            # Snapshot config once for consistency (FIX MEDIUM-2)
+            alsa_format = f"S{self.config.bit_depth}_LE"
+            bit_depth = self.config.bit_depth
+            bytes_per_sample = bit_depth // 8
+            np_dtype = np.int32 if bit_depth == 32 else np.int16
+            chunk_bytes = self.config.buffer_frames * bytes_per_sample
 
-                if self._stop_event.is_set():
-                    return
+            # Reference amplitude for dB calculation
+            ref_amplitude = float(2 ** (bit_depth - 1))
 
-                # FIX H-MED-003: Cache gain value for thread-safe access
+            proc = subprocess.Popen(
+                [
+                    "arecord",
+                    "-D", self.config.alsa_device,
+                    "-f", alsa_format,
+                    "-r", str(self.config.sample_rate),
+                    "-c", str(self.config.channels),
+                    "-t", "raw",
+                    "-q",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,  # FIX HIGH-3: avoid pipe buffer deadlock
+            )
+
+            # FIX HIGH-1: Register subprocess immediately so stop_capture can find it
+            with self._lock:
+                self._stream = proc
+
+            # Signal CAPTURING after subprocess is registered
+            with self._lock:
+                self._state = CaptureState.CAPTURING
+
+            while not self._stop_event.is_set():
+                raw = proc.stdout.read(chunk_bytes)
+                if not raw:
+                    break  # arecord exited or pipe closed
+
+                samples_native = np.frombuffer(raw, dtype=np_dtype)
+
+                # Cache mutable config values (thread-safe read)
                 with self._lock:
                     gain = self.config.gain
                     smoothing = self.config.level_smoothing
 
-                # Apply gain
-                samples = indata[:, 0] * gain
+                # FIX HIGH-2: INMP441 24-bit audio in S32_LE via plughw —
+                # ALSA distributes data across all 32 bits. Right-shift by 8
+                # (not 16) to preserve full 16-bit dynamic range in int16.
+                if bit_depth == 32:
+                    samples_int16 = (samples_native >> 8).astype(np.int16)
+                else:
+                    samples_int16 = samples_native
 
-                # Convert to int16
-                samples_int16 = (samples * 32767).astype(np.int16)
+                # Apply gain (in float space, then clip back)
+                if gain != 1.0:
+                    gained = (samples_int16.astype(np.float32) * gain)
+                    samples_int16 = np.clip(gained, -32768, 32767).astype(np.int16)
 
-                # Calculate level
-                rms = np.sqrt(np.mean(samples.astype(np.float64) ** 2))
+                # Calculate level in dB (using native bit-depth for accuracy)
+                rms = float(np.sqrt(np.mean(
+                    samples_native.astype(np.float64) ** 2
+                )))
                 if rms > 0:
-                    level_db = 20 * math.log10(rms / 1.0)  # Normalized
+                    level_db = 20 * math.log10(rms / ref_amplitude)
                 else:
                     level_db = self.DB_FLOOR
 
-                # Update smoothed level (using cached smoothing from H-MED-003 fix)
+                # Update smoothed level
                 with self._lock:
                     self._current_level_db = (
                         smoothing * level_db +
                         (1 - smoothing) * self._current_level_db
                     )
 
-                # Queue samples (drop oldest if full)
+                # FIX MEDIUM-1: Separate get/put to avoid losing new sample
                 try:
                     self._sample_queue.put_nowait(samples_int16)
                 except queue.Full:
                     try:
                         self._sample_queue.get_nowait()
-                        self._sample_queue.put_nowait(samples_int16)
                     except queue.Empty:
                         pass
-
-            # FIX H2-HIGH-001: Wrap stream creation to handle exceptions properly
-            try:
-                # Open input stream
-                self._stream = sd.InputStream(
-                    samplerate=self.config.sample_rate,
-                    blocksize=self.config.buffer_frames,
-                    device=self.config.device_index,
-                    channels=self.config.channels,
-                    dtype='float32',
-                    callback=audio_callback
-                )
-            except Exception as e:
-                # Stream creation failed - ensure reference is cleared
-                self._stream = None
-                raise  # Re-raise to be caught by outer handler
-
-            with self._stream:
-                with self._lock:
-                    self._state = CaptureState.CAPTURING
-
-                # Wait for stop signal
-                while not self._stop_event.wait(timeout=0.1):
-                    pass
+                    try:
+                        self._sample_queue.put_nowait(samples_int16)
+                    except queue.Full:
+                        pass  # Still full (pathological), drop explicitly
 
         except Exception as e:
             with self._lock:
                 self._state = CaptureState.ERROR
                 self._error_message = str(e)
-                # FIX H2-HIGH-001: Ensure stream is cleaned up on any exception
-                if self._stream is not None:
+        finally:
+            if proc is not None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=2)
+                except Exception:
                     try:
-                        self._stream.close()
+                        proc.kill()
                     except Exception:
                         pass
-                    self._stream = None
+            with self._lock:
+                self._stream = None
 
     def _mock_capture_loop(self):
         """Mock capture loop for testing without hardware."""
@@ -615,15 +653,15 @@ class INMP441Driver:
 
             # Queue mock samples
             try:
-                if np is not None:
-                    self._sample_queue.put_nowait(mock_samples)
-                else:
-                    self._sample_queue.put_nowait(mock_samples)
+                self._sample_queue.put_nowait(mock_samples)
             except queue.Full:
                 try:
                     self._sample_queue.get_nowait()
-                    self._sample_queue.put_nowait(mock_samples)
                 except queue.Empty:
+                    pass
+                try:
+                    self._sample_queue.put_nowait(mock_samples)
+                except queue.Full:
                     pass
 
             # Simulate real-time capture rate
@@ -879,7 +917,8 @@ class INMP441Driver:
         """Deinitialize driver and release resources.
 
         Call this method when done with the microphone to ensure
-        clean shutdown of audio streams and threads.
+        clean shutdown of arecord subprocess and capture thread.
+        Note: ``__init__`` runs a 1-second ALSA device probe.
 
         Example:
             ```python
@@ -891,14 +930,23 @@ class INMP441Driver:
                 mic.deinit()
             ```
         """
+        # FIX HIGH-4: idempotent guard (safe for __del__ during shutdown)
+        if self._closed:
+            return
+        self._closed = True
+
         self.stop_capture()
 
         with self._lock:
             if self._stream is not None:
                 try:
-                    self._stream.close()
+                    self._stream.terminate()
+                    self._stream.wait(timeout=2)
                 except Exception:
-                    pass
+                    try:
+                        self._stream.kill()
+                    except Exception:
+                        pass
                 self._stream = None
 
             self._state = CaptureState.STOPPED
@@ -923,8 +971,9 @@ class INMP441Driver:
 
 # Factory function for convenience
 def create_inmp441_driver(
-    sample_rate: int = 16000,
+    sample_rate: int = 48000,
     gain: float = 1.0,
+    alsa_device: str = "plughw:3,0",
     mock_mode: bool = False
 ) -> INMP441Driver:
     """Create INMP441 driver with common configuration.
@@ -932,8 +981,9 @@ def create_inmp441_driver(
     Convenience factory function for quick driver instantiation.
 
     Args:
-        sample_rate: Sample rate in Hz (default 16000).
+        sample_rate: Sample rate in Hz (default 48000).
         gain: Software gain multiplier (default 1.0).
+        alsa_device: ALSA device string (default "plughw:3,0").
         mock_mode: Use mock audio for testing (default False).
 
     Returns:
@@ -942,14 +992,13 @@ def create_inmp441_driver(
     Example:
         ```python
         # Quick setup for voice recognition
-        mic = create_inmp441_driver(sample_rate=16000)
-
-        # High-quality capture
-        mic = create_inmp441_driver(sample_rate=44100, gain=1.5)
+        mic = create_inmp441_driver(sample_rate=48000)
 
         # Testing without hardware
         mic = create_inmp441_driver(mock_mode=True)
         ```
     """
-    config = INMP441Config(sample_rate=sample_rate, gain=gain)
+    config = INMP441Config(
+        sample_rate=sample_rate, gain=gain, alsa_device=alsa_device
+    )
     return INMP441Driver(config=config, mock_mode=mock_mode)

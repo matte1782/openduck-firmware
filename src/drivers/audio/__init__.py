@@ -100,6 +100,27 @@ from .i2s_bus import (
     SPEAKER_CONFIG_16KHZ,
 )
 
+# MAX98357A speaker/amplifier driver
+from .max98357a import (
+    MAX98357ADriver,
+    MAX98357AConfig,
+    PlaybackState,
+    create_max98357a_driver,
+)
+
+# TTS (Text-to-Speech) engine
+from .tts_engine import (
+    TTSEngine,
+    TTSBackend,
+    TTSVoiceConfig,
+    TTSCache,
+    TTSCacheConfig,
+    TTSSpeaker,
+    TTSSpeakerConfig,
+    TTSSpeakerState,
+    create_tts_speaker,
+)
+
 __all__ = [
     # INMP441 microphone driver
     "INMP441Driver",
@@ -125,4 +146,19 @@ __all__ = [
     "MIC_CONFIG_16KHZ",
     "SPEAKER_CONFIG_44KHZ",
     "SPEAKER_CONFIG_16KHZ",
+    # MAX98357A speaker/amplifier driver
+    "MAX98357ADriver",
+    "MAX98357AConfig",
+    "PlaybackState",
+    "create_max98357a_driver",
+    # TTS (Text-to-Speech) engine
+    "TTSEngine",
+    "TTSBackend",
+    "TTSVoiceConfig",
+    "TTSCache",
+    "TTSCacheConfig",
+    "TTSSpeaker",
+    "TTSSpeakerConfig",
+    "TTSSpeakerState",
+    "create_tts_speaker",
 ]

@@ -1123,3 +1123,44 @@ class TestEdgeCases:
             assert e_stop._gpio_pin == pin
             e_stop.cleanup()
             mock_gpio.reset()
+
+    def test_start_with_gpio_already_low_triggers_estop(
+        self, mock_gpio, mock_servo_driver
+    ) -> None:
+        """Test start() triggers e-stop if GPIO is already LOW (switch ON).
+
+        With a latching toggle switch, GPIO may already be LOW when the
+        system starts. FALLING edge will never fire, so start() must check
+        initial state and trigger immediately.
+        """
+        # Simulate switch already in e-stop position
+        mock_gpio.pin_states[26] = 0  # LOW = switch closed
+
+        e_stop = EmergencyStop(
+            servo_driver=mock_servo_driver,
+            gpio_provider=mock_gpio,
+            gpio_pin=26
+        )
+        e_stop.start()
+
+        # Should have triggered e-stop and be in RESET_REQUIRED
+        assert e_stop.state == SafetyState.RESET_REQUIRED
+        assert mock_servo_driver.disable_all_calls > 0
+        e_stop.cleanup()
+
+    def test_start_with_gpio_high_stays_running(
+        self, mock_gpio, mock_servo_driver
+    ) -> None:
+        """Test start() stays in RUNNING when GPIO is HIGH (switch OFF)."""
+        mock_gpio.pin_states[26] = 1  # HIGH = switch open = safe
+
+        e_stop = EmergencyStop(
+            servo_driver=mock_servo_driver,
+            gpio_provider=mock_gpio,
+            gpio_pin=26
+        )
+        e_stop.start()
+
+        assert e_stop.state == SafetyState.RUNNING
+        assert mock_servo_driver.disable_all_calls == 0
+        e_stop.cleanup()

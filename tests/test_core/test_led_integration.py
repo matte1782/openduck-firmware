@@ -100,7 +100,7 @@ class TestLEDController:
     def test_initialization(self, led_controller):
         """Test controller initializes correctly."""
         assert led_controller.num_pixels == 16
-        assert led_controller.left_pin == 18
+        assert led_controller.left_pin == 10
         assert led_controller.right_pin == 13
         assert led_controller._brightness == 128
 

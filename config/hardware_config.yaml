@@ -57,8 +57,7 @@ gpio:
   neopixel:
     # Primary LED ring (16 LEDs) - Left Eye
     ring_1:
-      data_pin: 18  # GPIO 18 (PWM0, Physical pin 12) ⚠️ CONFLICTS WITH I2S
-                    # MIGRATION PLANNED: Will move to GPIO 10 (Pin 19) in Week 02
+      data_pin: 10  # GPIO 10 (SPI MOSI, Physical pin 19) ✅ NO CONFLICTS - Migrated from GPIO 18
       num_leds: 16
       brightness: 0.5  # 0.0-1.0
 

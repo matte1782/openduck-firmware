@@ -34,12 +34,12 @@ class TestINMP441Config:
 
         config = INMP441Config()
 
-        assert config.sample_rate == 16000
-        assert config.bit_depth == 16
+        assert config.sample_rate == 48000
+        assert config.bit_depth == 32
         assert config.channels == 1
         assert config.gain == 1.0
         assert config.buffer_frames == 512
-        assert config.device_index is None
+        assert config.alsa_device == "plughw:3,0"
         assert config.timeout_seconds == 5.0
         assert config.level_smoothing == 0.3
 
@@ -76,7 +76,7 @@ class TestINMP441Config:
         assert config.sample_rate == sample_rate
 
     def test_config_invalid_bit_depth_raises(self):
-        """Test INMP441Config rejects non-16-bit depth."""
+        """Test INMP441Config rejects unsupported bit depth."""
         from src.drivers.audio.inmp441 import INMP441Config
 
         with pytest.raises(ValueError, match="Invalid bit_depth"):
@@ -135,7 +135,7 @@ class TestINMP441Driver:
         driver = INMP441Driver(mock_mode=True)
 
         assert driver.config is not None
-        assert driver.config.sample_rate == 16000
+        assert driver.config.sample_rate == 48000
         assert driver._mock_mode is True
 
     def test_driver_init_with_custom_config(self):
@@ -275,7 +275,7 @@ class TestReadSamples:
             audio_sample = driver.read_audio_sample(512)
 
             assert isinstance(audio_sample, AudioSample)
-            assert audio_sample.sample_rate == 16000
+            assert audio_sample.sample_rate == 48000
             assert audio_sample.timestamp > 0
         finally:
             driver.stop_capture()
@@ -517,7 +517,7 @@ class TestFactoryFunction:
         driver = create_inmp441_driver(mock_mode=True)
 
         assert driver is not None
-        assert driver.config.sample_rate == 16000
+        assert driver.config.sample_rate == 48000
 
     def test_factory_with_custom_params(self):
         """Test factory function accepts custom parameters."""
