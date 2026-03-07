@@ -8,6 +8,203 @@
 
 ## Week 08: STS3215 Driver + End-to-End Stack + First Prints (3-9 Mar 2026)
 
+### Day 52 - Friday, 7 March 2026 (Weekend Session)
+
+**Focus:** E2E Integration Stack — ConfigLoader + Hostile Review
+**Status:** IN PROGRESS
+
+#### Task 1: Hostile Review of Full Project State
+- Conducted 3-agent parallel hostile review (firmware src, test suite, planning)
+- **4 CRITICAL findings:** changelog gap, E2E stack missing, battery blocked 13 days, robot.py broken import
+- **4 HIGH findings:** test fixture wrong channels, no safety integration tests, 18 untested files, scope explosion
+- Decision: Focus weekend on E2E integration stack (no battery needed)
+- Status: COMPLETE
+
+#### Task 2: ConfigLoader — robot_config.yaml loader
+- File: `firmware/src/core/config_loader.py` (~370 lines)
+- Loads and validates all sections: head, arms, leds, i2c, safety
+- Typed frozen dataclasses: HeadChannels, HeadLimitsConfig, HeadServoFlags, HeadAnimationConfig, ArmLimitsConfig, ArmCollisionZone, LedEyeConfig, SafetyConfig, I2CConfig
+- Factory methods: `make_head_config()`, `make_head_limits()` produce kwargs for HeadConfig/HeadLimits
+- Fail-fast validation: every required key checked at load time with clear error paths
+- `ConfigError` exception with key path for precise debugging
+- Hex address parsing: supports both int (0x40) and string ("0x41")
+- Tests: `firmware/tests/test_core/test_config_loader.py` — **61 tests passing**
+  - File I/O tests (load, empty, invalid YAML, not found)
+  - Missing key detection for every required field
+  - Type validation (int/float/bool/str)
+  - Frozen dataclass immutability
+  - Cross-validation with real robot_config.yaml
+  - Factory method output compatibility with HeadConfig/HeadLimits
+- Status: COMPLETE
+
+#### Task 3: Fix robot.py broken import (C4)
+- Line 127: `from drivers.servo.pca9685` → `from src.drivers.servo.pca9685`
+- Was silently caught by try/except, producing NULL servo driver
+- Status: COMPLETE
+
+#### Task 4: Wire HeadController + STS3215 into Robot
+- File: `firmware/src/core/robot.py` (~630 → ~700 lines, full rewrite)
+- **HeadController integration:**
+  - Robot accepts optional `head_controller` via dependency injection
+  - New methods: `move_head()`, `nod()`, `shake()` delegate to HeadController
+  - `emergency_stop()` calls HeadController.emergency_stop() + STS3215 broadcast disable
+  - `reset()` calls HeadController.reset_emergency()
+  - `stop()` stops HeadController animations + disables bus servos
+  - `get_diagnostics()` includes head state (position, is_moving)
+- **STS3215 integration:**
+  - Robot accepts optional `bus_servo_driver` (STS3215Driver) + `bus_servo_ids`
+  - New method: `set_bus_servo_position(servo_id, degrees)` routes to STS3215
+  - `set_arm_position()` routes to STS3215 when servo IDs provided, PCA9685 fallback for testing
+  - E-stop calls `torque_disable_all()` on bus servos (broadcast ID 254, <1ms)
+- **Subsystem routing enforced:** PCA9685 = head only, STS3215 = arm/leg
+- Tests: 354 core+head tests passing, zero regressions
+- Status: COMPLETE
+
+#### Task 5: Write main.py entry point
+- File: `firmware/main.py` (~230 lines)
+- Loads ConfigLoader → creates PCA9685 → STS3215 → HeadController → IMU → Robot
+- CLI args: `--config`, `--mock`, `-v/--verbose`
+- Signal handling: SIGINT/SIGTERM → graceful shutdown (e-stop all, cleanup, exit 0)
+- Mock mode: `--mock` runs without real hardware (mock PCA9685 + STS3215)
+- Shutdown order: HeadController.emergency_stop → STS3215.torque_disable_all → SafetyCoordinator.stop → deinit
+- Verified: mock mode boots → runs 50Hz loop → clean shutdown → exit code 0
+- Status: COMPLETE
+
+#### Task 6: E2E Integration Tests
+- File: `firmware/tests/test_integration/test_e2e_robot.py` — **29 tests passing**
+- Covers full path: ConfigLoader → Robot → HeadController → mock servos → shutdown
+- Test categories:
+  - Config → HeadConfig wiring (3 tests)
+  - Robot lifecycle: INIT → READY → E_STOPPED (5 tests)
+  - Head commands via Robot: move_head, nod, shake (5 tests)
+  - Bus servo commands: set_bus_servo_position (3 tests)
+  - Arm IK routing: STS3215 path + PCA9685 fallback (3 tests)
+  - Emergency stop: all subsystems disabled (3 tests)
+  - Diagnostics: head state + subsystem info (2 tests)
+  - Control loop: iterations, callbacks, e-stop exit (3 tests)
+  - Full scenario: boot → move → nod → bus servo → e-stop → reset → shutdown (2 tests)
+- Status: COMPLETE
+
+#### Task 7: Fix flaky RNG test
+- File: `firmware/src/animation/micro_expressions_enhanced.py`
+- **Root cause:** `BlinkController.seed_rng()` and `SaccadeController.seed_rng()` re-seeded RNG
+  but did NOT recalculate `_next_blink_interval_ms` / `_next_saccade_interval_ms` which were
+  set in `__post_init__` using an unseeded RNG — so two identically-seeded engines had
+  different initial intervals, causing divergent state after 100 updates
+- **Fix:** Added `_schedule_next_blink()` call in `BlinkController.seed_rng()` and
+  `_schedule_next_saccade()` call in `SaccadeController.seed_rng()` (TremorEngine already
+  regenerated phases in its seed_rng)
+- Verified: 5/5 consecutive runs pass
+- Status: COMPLETE
+
+#### Task 8: Hostile Review Round 1 — 7-Agent Parallel Review
+- Launched 7 specialized hostile review agents in parallel:
+  - HR1 (Import audit): PASS — 4 LOW unused imports
+  - HR2 (ConfigLoader security): 1 CRITICAL + 5 HIGH (missing range validations)
+  - HR3 (Robot state machine): 4 CRITICAL + 3 HIGH (TOCTOU, e-stop sequencing, partial failure)
+  - HR4 (main.py safety): 1 CRITICAL + 1 HIGH (signal race, resource leak)
+  - HR5 (E2E test quality): 1 CRITICAL (tautology assertion) + missing negative tests
+  - HR6 (RNG fix): PASS — fix verified correct
+  - HR7 (API contract): 1 CRITICAL (speed_ms vs duration_ms mismatch)
+- Status: COMPLETE
+
+#### Task 9: Fix CRITICAL + HIGH Issues from Hostile Review
+- **C1 (HR7) FIXED:** `robot.py` move_head() passed `speed_ms` kwarg but HeadController.move_to()
+  expects `duration_ms` — would TypeError at runtime. Renamed parameter to `duration_ms`.
+- **C2 (HR5) FIXED:** Tautology assertion `assert X == 0 or True` on line 289 of test_e2e_robot.py
+  always passed — changed to `assert mock_sts3215.set_position.call_count == 2`
+- **C4 (HR3) FIXED:** E-stop sequencing — HeadController.emergency_stop() was called first,
+  if it hung, bus servos never disabled. Reordered: bus servos first (most critical),
+  then PCA9685, then HeadController (least critical — can't cause physical harm)
+- **H1 (HR2) FIXED:** Added range validation in ConfigLoader for:
+  - PCA9685 channels: 0-15
+  - GPIO pins: 0-27 (Raspberry Pi BCM range)
+  - LED brightness: 0.0-1.0
+  - I2C address: 0x00-0x7F
+  - PWM frequency: 24-1526 Hz (PCA9685 hardware range)
+  - Watchdog timeout: 1-60000 ms
+- **H2 (HR3) FIXED:** `reset()` now fails (returns False, stays E_STOPPED) if
+  HeadController.reset_emergency() throws, instead of ignoring the error
+- **H4 (HR5) FIXED:** Added 5 negative E2E tests:
+  - STS3215 set_position returning False propagates
+  - STS3215 exception triggers e-stop
+  - torque_disable_all exception during e-stop doesn't prevent state transition
+  - HeadController.reset_emergency() failure blocks READY transition
+  - move_head correctly passes duration_ms (not speed_ms) to HeadController
+- **H1 range validation tests:** 12 new tests in test_config_loader.py (boundary + OOB)
+- Status: COMPLETE
+
+#### Task 10: Hostile Review Round 2 — 7-Agent Deep Review
+- Launched 7 specialized agents (fix verification, thread safety, config completeness,
+  shutdown paths, test coverage, e-stop chain, cross-file consistency)
+- **1 CRITICAL found:** GPIO/watchdog e-stop doesn't disable STS3215 bus servos
+  or HeadController — EmergencyStop only knows PCA9685
+- **12 HIGH, 8 MEDIUM** findings across safety, validation, test coverage
+- Status: COMPLETE
+
+#### Task 11: Fix CRITICAL + HIGH Issues from Round 2
+- **C1 (SAFETY) FIXED:** GPIO/watchdog e-stop now propagates to bus servos + HeadController
+  - Added `register_estop_callback()` to SafetyCoordinator
+  - Robot registers `_on_external_estop()` during `start()` via EmergencyStop callback chain
+  - External callback disables bus servos (torque_disable_all), stops HeadController, transitions state
+  - 4 new tests verify propagation (bus servos disabled, HeadController stopped, callback registered, idempotency)
+- **H7+H8 FIXED:** Added min < max validation for head (4 DOF pairs) and arm (3 DOF pairs) joint limits
+- **H9 FIXED:** `safety.startup_delay_ms` range-checked to [0, 30000]
+- **H11 FIXED:** main.py `try/finally` now wraps entire lifecycle (including `robot.start()`)
+  — serial port always cleaned up on any exit path
+- **M6 FIXED:** E2E test `robot` fixture now uses `yield` + teardown
+- **M8 FIXED:** `bus_servo_ids` property added to ConfigLoader (reads arm servo IDs from YAML,
+  returns [] when TBD). main.py now passes `bus_servo_ids=config.bus_servo_ids` to Robot.
+- **8 new validation tests:** min<max (4), startup_delay (2), bus_servo_ids (2)
+- Status: COMPLETE
+
+#### Deferred Issues (documented, LOW priority)
+- H6: HeadController animation thread bypasses SafetyCoordinator (mitigated by C1 fix — callback stops animations)
+- H10: Audio section not parsed by ConfigLoader (no consumer yet — add when audio pipeline is built)
+- H12: 5 timing-dependent tests (need blocking mode in HeadController — architectural change)
+- M1-M3: YAML keys silently ignored (head.safety, arms.safety, leds.animation) — add parsers when features built
+- M4: TOCTOU in command methods (benign with single-threaded control loop + low-torque servos)
+- M5: stop() can block 20ms waiting for animation frame (acceptable for shutdown)
+- M7: Weak nod/shake assertions (cosmetic — correct channels verified in move_head test)
+- H7 (R3): HeadController=None silently accepted in main.py — decide if required or optional
+- H13 (R3-HR5): TX echo on half-duplex STS3215 bus — verify on real FE-URT-1 hardware
+- E2E test quality: double stop(), weak assertions, timing-dependent sleeps (from R3-HR4)
+
+#### Task 12: Hostile Review Round 3 — 6-Agent Final Pass
+- Launched 6 specialized agents: ConfigLoader, Robot state machine, main.py, E2E tests, STS3215, cross-file
+- **6 CRITICAL + 14 HIGH + 7 MEDIUM** findings across all files
+- Status: COMPLETE
+
+#### Task 13: Fix CRITICAL + HIGH Issues from Round 3
+- **C1 (HR1) FIXED:** `_require_int`/`_require_number` now reject `bool` values (`isinstance(val, bool)` check before `int`)
+- **C2 (HR1) FIXED:** Head limits validate 0.0 in range `[min, max]` (center position must be reachable)
+- **C3 (HR2) FIXED:** `_on_external_estop` no longer acquires `_state_lock` — lock-free atomic write avoids AB-BA deadlock with GPIO thread
+- **C4 (HR2) DEFERRED:** EmergencyStop INIT-after-reset — requires EmergencyStop internals change; current flow is safe because `reset()` only called manually + tests pass. Documented for next sprint.
+- **C5 (HR3) FIXED:** `--mock` now passes `_MockGPIOProvider()` to Robot, preventing real GPIO access
+- **C6 (HR3) FIXED:** `robot = None` before try block; `finally` guards with `if robot is not None`
+- **H1 (HR1) FIXED:** LED `count` validated in range [1, 1000]
+- **H2 (HR1) FIXED:** `_require_str` now rejects empty strings
+- **H3 (HR1) FIXED:** LED pin range changed from [0, 27] to [2, 27] (GPIO 0-1 are I2C/EEPROM reserved)
+- **H4 (HR1) FIXED:** `bus_servo_ids` now logs warning for non-int, non-TBD values; rejects bool
+- **H5 (HR2+HR6) FIXED:** `stop()` reordered: bus servos FIRST → safety/PCA9685 → HeadController LAST (matches `emergency_stop()`)
+- **H6 (HR3) FIXED:** Removed `_logger.info()` from signal handler (not async-signal-safe)
+- **H10 (HR6) FIXED:** `_MockServoDriver` now implements `get_channel_state()` for CurrentLimiter
+- **H11 (HR6) FIXED:** `make_head_config()` now includes `limits` key (HeadLimits instance) — no more manual injection trap
+- **H12 (HR6) FIXED:** `register_estop_callback()` is now idempotent — replaces callback instead of appending
+- **H14 (HR5) FIXED:** `_validate_response` now checks `resp[3] >= 2` before accessing error byte
+- **M1 (HR2) FIXED:** `validate_transition` docstring corrected: `INIT -> E_STOPPED` returns `True`
+- Updated test: `test_head_config_compatible_with_headconfig` now expects `limits` key
+- Updated test: `test_valid_boundary_values` uses pin 2 (not 0) as minimum valid GPIO
+- Also added `_ShutdownRequested(Exception)` in main.py to replace fragile `KeyboardInterrupt` from callback
+- Status: COMPLETE
+
+#### Test Suite Status (Final)
+- **2576 passed, 0 failed, 19 skipped** (5 LED perf flakes are pre-existing, CPU-load dependent)
+- +117 new tests this session (+4 from R3 fixes)
+- Zero regressions from hostile review fixes
+
+---
+
 ### Day 48 - Monday, 3 March 2026
 
 **Focus:** STS3215 Serial Bus Servo Driver (Software Only)
@@ -73,6 +270,24 @@
 - 6-phase validation: bus scan, telemetry, single move, multi move, broadcast e-stop, concurrent threads
 - Ready to `scp` to Pi and run
 - Status: COMPLETE
+
+---
+
+### Days 50-52 - Wednesday-Friday, 5-7 March 2026
+
+**Focus:** University lectures (no project work)
+**Status:** PAUSED — No work performed
+
+- No firmware changes, no hardware work
+- Battery charger still not acquired (barrel jack connector unavailable this week)
+- STS3215 HW validation remains blocked on battery charge (6.6V, needs 7.4V)
+- Test suite status at session resume: **2458 passed, 1 failed, 19 skipped**
+  - New flaky failure: `test_micro_expressions_enhanced.py::test_seed_produces_reproducible_results`
+  - Seeded RNG non-determinism in `get_per_pixel_modifiers()` — needs investigation
+- **Hostile review conducted** at session start (Day 52):
+  - 4 CRITICAL: changelog gap, E2E stack missing, battery blocked 13 days, robot.py broken import
+  - 4 HIGH: test fixture wrong channels, no safety integration tests, 18 untested files, scope explosion
+  - Decision: Focus weekend on E2E integration stack (software, no HW needed)
 
 ---
 

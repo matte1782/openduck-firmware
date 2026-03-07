@@ -88,7 +88,7 @@ def validate_transition(from_state: RobotState, to_state: RobotState) -> bool:
         >>> validate_transition(RobotState.INIT, RobotState.READY)
         True
         >>> validate_transition(RobotState.INIT, RobotState.E_STOPPED)
-        False
+        True
     """
     valid_targets = VALID_TRANSITIONS.get(from_state, set())
     return to_state in valid_targets

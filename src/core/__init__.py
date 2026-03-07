@@ -23,6 +23,7 @@ from .safety_coordinator import (
 )
 
 from .robot import Robot
+from .config_loader import ConfigLoader, ConfigError
 
 __all__ = [
     # State machine
@@ -40,4 +41,7 @@ __all__ = [
     "SafetyStatus",
     # Robot orchestrator
     "Robot",
+    # Configuration
+    "ConfigLoader",
+    "ConfigError",
 ]

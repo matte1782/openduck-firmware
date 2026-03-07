@@ -1,0 +1,3 @@
+# TTS phrase cache directory
+# Cached audio files are stored here for instant playback
+# Files: {hash}.pcm (16-bit PCM, 16kHz, mono)

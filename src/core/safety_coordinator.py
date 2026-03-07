@@ -37,7 +37,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from src.safety.emergency_stop import EmergencyStop, SafetyState
 from src.safety.watchdog import ServoWatchdog
@@ -141,6 +141,9 @@ class SafetyCoordinator:
         self._current_limiter = CurrentLimiter(
             pca_driver=servo_driver,
         )
+
+        # External e-stop callback (for Robot to hook into GPIO/watchdog triggers)
+        self._external_estop_callback: Optional[Callable] = None
 
         _logger.debug(
             "SafetyCoordinator initialized: watchdog=%dms, estop_pin=%d",
@@ -468,6 +471,41 @@ class SafetyCoordinator:
             except Exception as e:
                 _logger.error("E-stop reset failed: %s", e)
                 return False
+
+    def register_estop_callback(self, callback: Callable[[str], None]) -> None:
+        """Register an external callback for e-stop events.
+
+        The callback is invoked when EmergencyStop transitions to E_STOP
+        from any source (GPIO, watchdog, software). This allows the Robot
+        to disable bus servos and HeadController even for GPIO/watchdog
+        triggered e-stops that bypass Robot.emergency_stop().
+
+        Idempotent: replaces any previously registered callback. Only one
+        external callback is supported to prevent double-fire on stop+start.
+
+        Args:
+            callback: Function taking a source string argument.
+        """
+        with self._lock:
+            # If already registered, just update the callback reference —
+            # the closure below already delegates to self._external_estop_callback
+            if self._external_estop_callback is not None:
+                _logger.debug("Replacing existing external e-stop callback")
+                self._external_estop_callback = callback
+                return
+
+            self._external_estop_callback = callback
+            # Register on EmergencyStop's state change callback system
+            def _on_estop_state_change(
+                old_state: SafetyState, new_state: SafetyState, source: str,
+            ) -> None:
+                if new_state == SafetyState.E_STOP and self._external_estop_callback is not None:
+                    try:
+                        self._external_estop_callback(source)
+                    except Exception as e:
+                        _logger.error("External e-stop callback error: %s", e)
+
+            self._emergency_stop.register_callback(_on_estop_state_change)
 
     def get_status(self) -> SafetyStatus:
         """Get snapshot of safety system status.

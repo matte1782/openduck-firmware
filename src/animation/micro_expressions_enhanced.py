@@ -464,6 +464,7 @@ class BlinkController:
     def seed_rng(self, seed: int) -> None:
         """Seed RNG for reproducible tests."""
         self._rng.seed(seed)
+        self._schedule_next_blink()
 
 
 # ============================================================================
@@ -733,6 +734,7 @@ class SaccadeController:
     def seed_rng(self, seed: int) -> None:
         """Seed RNG for reproducible tests."""
         self._rng.seed(seed)
+        self._schedule_next_saccade()
 
 
 # ============================================================================

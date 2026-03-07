@@ -261,6 +261,11 @@ class STS3215Driver:
         # Total valid bytes = 4 + LEN (2 header + ID + LEN + LEN payload).
         # Checksum is at index 3 + LEN (last valid byte).
         resp_len_field = resp[3]
+        if resp_len_field < 2:
+            raise IOError(
+                f"STS3215 ID {expected_id}: LENGTH field too small "
+                f"({resp_len_field}, minimum 2)"
+            )
         cs_index = 3 + resp_len_field  # Index of checksum byte
         if cs_index >= len(resp):
             raise IOError(
