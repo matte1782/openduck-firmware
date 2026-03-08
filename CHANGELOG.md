@@ -8,6 +8,62 @@
 
 ## Week 08: STS3215 Driver + End-to-End Stack + First Prints (3-9 Mar 2026)
 
+### Day 53 - Saturday, 8 March 2026
+
+**Focus:** IMX500 Computer Vision Pipeline — Research + Production Implementation
+**Status:** COMPLETE
+
+#### Task 1: Deep Research — IMX500 CV Pipeline (4 parallel agents)
+- **Agent 1 — IMX500 Model Zoo:** Researched all 28 pre-trained .rpk models. YOLO11n best (mAP 0.374), no face-specific model. Person detection (COCO class 0) sufficient at 1-3m.
+- **Agent 2 — picamera2 API:** Full API mapping for `picamera2.devices.imx500`. Installation: `sudo apt install imx500-all` + reboot. Headless mode: `show_preview=False`.
+- **Agent 3 — Tracking Algorithms:** PD control (no I-term), Kalman filter, centroid tracker, Disney-style natural motion (saccades, idle, curiosity roll).
+- **Agent 4 — Architecture Explorer:** Mapped existing firmware for integration points. CV driver fits as daemon thread via `robot.move_head()`.
+- Decision: YOLO11n model, PD control, 30Hz tracking loop, centroid tracker (SORT/DeepSORT overkill)
+- Status: COMPLETE
+
+#### Task 2: IMX500 CV Driver
+- File: `firmware/src/drivers/camera/imx500_cv.py` (~370 lines)
+- File: `firmware/src/drivers/camera/__init__.py` (1 line)
+- Wraps picamera2 IMX500 for on-chip person detection
+- Detection dataclass: category, confidence, bbox, center_x/y, area
+- Background capture thread (daemon), non-blocking `get_detections()`
+- Thread-safe detection cache with lock, age tracking
+- Supports any .rpk model (default: MobileNet SSD 320x320)
+- Status: COMPLETE
+
+#### Task 3: CV Coordinator — Face/Person Tracking
+- File: `firmware/src/control/cv_coordinator.py` (~760 lines)
+- Full tracking pipeline: Detection → CentroidTracker → TargetSelector → PD Control → Head Movement
+- Components: PDController, OutputSmoother, CentroidTracker, TargetSelector, IdleBehavior, NoDetectionBehavior
+- Disney-style natural motion: saccade vs pursuit, idle micro-movements (layered sine waves), curiosity roll
+- Pitch split: 70% neck_pitch, 30% head_pitch (configurable)
+- No-detection sequence: hold 1.5s → ease back to center → idle mode
+- Loose coupling via callbacks (get_detections, move_head, is_operational)
+- Status: COMPLETE
+
+#### Task 4: Test Suites
+- File: `firmware/tests/test_drivers/test_imx500_cv.py` (37 tests)
+- File: `firmware/tests/test_control/test_cv_coordinator.py` (47 tests)
+- **84 new tests total, all passing**
+- Full mock coverage: MockIMX500, MockPicamera2, MockNetworkIntrinsics
+- Tests: constructor validation, detection parsing, cache thread-safety, lifecycle, PD control, centroid tracking, target selection, idle behavior, no-detection behavior, pixel-to-angle, coordinator integration
+- Full suite: **2661 passed, 19 skipped, 0 failed**
+- Status: COMPLETE
+
+#### Task 5: Hostile Review (1 agent, strict protocol)
+- **3 CRITICAL, 5 HIGH, 4 MEDIUM** issues found
+- All CRITICAL and HIGH fixed:
+  - C-1: TOCTOU between is_operational check and move_head → added double-check before move_head
+  - C-2: Bbox normalization used input_h for both axes → now uses input_w for X, input_h for Y
+  - C-3: Mutated shared NetworkIntrinsics SDK object → now copy.copy() before mutation
+  - H-1: No cleanup on start() failure → try/except with _deinit_hardware() on failure
+  - H-2: Use-after-null if capture thread outlives stop() → skip deinit if thread still alive
+  - H-3: camera_configuration() called per-detection in inner loop → hoisted before loop
+  - H-4: current_target_angles read two floats without lock → added _state_lock
+  - H-5: is_in_idle used independent time.monotonic() → now accepts `now` parameter
+- MEDIUM fixed: M-1 (repeated warnings), M-2 (input_w used), M-3 (speed/deadzone validation), M-4 (idle output clamped)
+- Status: COMPLETE — all 12 issues resolved
+
 ### Day 52 - Friday, 7 March 2026 (Weekend Session)
 
 **Focus:** E2E Integration Stack — ConfigLoader + Hostile Review
