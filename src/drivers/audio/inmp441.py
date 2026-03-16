@@ -105,8 +105,8 @@ class INMP441Config:
     """Configuration parameters for INMP441 microphone.
 
     Attributes:
-        sample_rate: Audio sample rate in Hz. Default 16000 for voice.
-        bit_depth: Bits per sample. Fixed at 16 for this driver.
+        sample_rate: Audio sample rate in Hz. Default 48000 (native I2S rate).
+        bit_depth: Bits per sample. Default 32 (I2S native width).
         channels: Number of audio channels. Fixed at 1 (mono).
         gain: Software gain multiplier (1.0 = unity gain).
         buffer_frames: Number of frames per buffer chunk.

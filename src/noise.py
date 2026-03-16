@@ -22,8 +22,8 @@ def pnoise2(x, y, octaves=1, persistence=0.5, lacunarity=2.0, repeatx=1024, repe
     Args:
         x, y: Coordinates for noise lookup
         octaves: Number of octaves (layers of detail)
-        persistence: How quickly amplitude falls off per octave
-        lacunarity: How quickly frequency increases per octave
+        persistence: Accepted for API compatibility but not used by this backend.
+        lacunarity: Accepted for API compatibility but not used by this backend.
         repeatx, repeaty: Tile size (not used in this implementation)
         base: Base offset (not used in this implementation)
     

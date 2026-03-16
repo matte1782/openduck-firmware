@@ -176,7 +176,7 @@ class HeadServoTester:
             True if test completed (user confirmation)
         """
         print("\n" + "=" * 60)
-        print("  PAN SERVO TEST (Channel 12)")
+        print(f"  PAN SERVO TEST (Channel {PAN_CHANNEL})")
         print("=" * 60)
         print(f"Range: {PAN_MIN}° to {PAN_MAX}° (center: {PAN_CENTER}°)")
         print()
@@ -204,7 +204,7 @@ class HeadServoTester:
             True if test completed
         """
         print("\n" + "=" * 60)
-        print("  TILT SERVO TEST (Channel 13)")
+        print(f"  TILT SERVO TEST (Channel {TILT_CHANNEL})")
         print("=" * 60)
         print(f"Range: {TILT_MIN}° to {TILT_MAX}° (center: {TILT_CENTER}°)")
         print()
@@ -405,8 +405,8 @@ def main() -> int:
     print("  [ ] Cut USB cable connected to PCA9685 V+ and GND")
     print("  [ ] PCA9685 logic power from Pi 3.3V")
     print("  [ ] PCA9685 I2C connected (SDA/SCL)")
-    print("  [ ] Pan servo on channel 12")
-    print("  [ ] Tilt servo on channel 13")
+    print(f"  [ ] Pan servo on channel {PAN_CHANNEL}")
+    print(f"  [ ] Tilt servo on channel {TILT_CHANNEL}")
     print()
 
     if not args.simulate and not HARDWARE_AVAILABLE:

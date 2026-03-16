@@ -14,42 +14,9 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from .states import EmotionState
 from .config import EmotionConfig
+from .definitions import EMOTION_DEFINITIONS
 
 _logger = logging.getLogger(__name__)
-
-# Default emotion definitions for LED patterns and servo positions
-EMOTION_DEFINITIONS: Dict[str, Dict[str, Any]] = {
-    'idle': {
-        'pattern': 'breathing',
-        'color': (100, 150, 255),
-        'speed': 1.0,
-        'servo_position': 0.0,
-    },
-    'happy': {
-        'pattern': 'pulse',
-        'color': (255, 200, 0),
-        'speed': 1.2,
-        'servo_position': 0.3,
-    },
-    'thinking': {
-        'pattern': 'spin',
-        'color': (200, 200, 255),
-        'speed': 1.5,
-        'servo_position': -0.2,
-    },
-    'alert': {
-        'pattern': 'pulse',
-        'color': (255, 100, 100),
-        'speed': 2.0,
-        'servo_position': 0.5,
-    },
-    'error': {
-        'pattern': 'pulse',
-        'color': (255, 0, 0),
-        'speed': 3.0,
-        'servo_position': 0.0,
-    },
-}
 
 
 class EmotionStateMachine:

@@ -706,6 +706,8 @@ class CVCoordinator:
             pitch_delta = self._smoother_pitch.smooth(pitch_delta)
 
             # H-4 fix: update position under lock (prevents torn tuple)
+            # CV tracking uses [-45,45] yaw (narrower than head_safety PAN_HARD_MAX=90)
+            # to keep movements smooth and avoid mechanical stress during tracking.
             with self._state_lock:
                 self._current_yaw = _clamp(
                     self._current_yaw + yaw_delta, -45.0, 45.0,

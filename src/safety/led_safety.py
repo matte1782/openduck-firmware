@@ -359,7 +359,7 @@ class LEDSafetyManager:
 
         Returns:
             Tuple of (valid: bool, reason: str).
-            - If valid is True, GPIO is available and ready.
+            - If valid is True, LED operations are permitted (GPIO or simulation).
             - If valid is False, reason explains the issue.
 
         Example:
