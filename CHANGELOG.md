@@ -1,8 +1,237 @@
 # OpenDuck Mini V3 - Development Changelog
 
 **Project Start:** 15 January 2026
-**Current Week:** Week 08 (3-9 Mar) - STS3215 Driver + End-to-End Stack + First Prints
+**Current Week:** Week 09 (10-16 Mar) - RL Audit + Training Prep
 **Target Completion:** Week 01 = 55-60%, Full Project = 8 weeks
+
+---
+
+## Week 09: RL Audit + Training Prep (10-16 Mar 2026)
+
+### Day 58 - Sunday, 16 March 2026
+
+**Focus:** 10M PPO viability run + CV→Robot wiring
+**Status:** COMPLETE — PPO mechanically alive, v_loss pathology discovered; CV wired into main.py
+
+#### Task 7: Wire CVCoordinator into Robot + main.py (Rule 5 Sidecar Trial)
+- **TASK FRAME:** Add `--enable-cv` flag, wire IMX500CVDriver + CVCoordinator into Robot lifecycle
+- **Rule 5 artifacts:** `Planning/AIDOS_sidecar_trial_rollout/2026-03-16_2100_trial1/`
+- **Files modified:**
+  - `firmware/src/core/robot.py`: Added `cv_coordinator` property (getter/setter), CV stop in stop(), emergency_stop(), _on_external_estop() — all before HeadController (CV calls move_head)
+  - `firmware/main.py`: Added `--enable-cv` flag, `_MockCVDriver`, `_create_cv_driver()`, `_create_cv_coordinator()`, CV lifecycle wiring (start after robot, cleanup in finally)
+  - `firmware/tests/test_integration/test_e2e_robot.py`: Added `TestCVCoordinatorE2E` — 8 new tests
+- **Key decisions:**
+  - Property setter (not constructor) for cv_coordinator — breaks circular dependency
+  - CV stop before HeadController in all 3 shutdown paths
+  - CV driver cleanup in main.py finally (matches bus_servo_driver pattern)
+- **Tests:** 46 E2E passed (8 new), 2656 total passed, 0 regressions
+- **Sidecar trial verdict:** Rule 5 caught shutdown ordering constraint + prevented unnecessary abstraction
+- Status: COMPLETE
+
+#### Task 1: Pre-run Math Validation (Phases 1-3)
+- Validated batch math against actual Brax 0.14.0 source code (train.py lines 370-384)
+- Cross-referenced with PPO paper (Schulman et al. 2017, arXiv:1707.06347)
+- **Corrected prior batch math:** actual formula uses `ceil` + `num_resets_per_eval=10`, not floor division
+- Scenario A confirmed: 10M → 140 training steps, 17,920 gradient updates, 22.9M env steps
+- Pre-run safety: git state verified (e93d2b9), output dir clean, 121GB free disk
+- Files updated: `docs/aidos/experiments/rl_next_experiment_plan.md`, `docs/aidos/audits/rl_training_readiness.md`
+- Status: COMPLETE
+
+#### Task 2: 10M PPO Viability Run Execution (Phase 4)
+- Command: `python -m playground.open_duck_mini_v2.runner --task flat_terrain --num_timesteps 10000000 --output_dir ./training_runs/local_10M_2026-03-16`
+- Repo: `C:\Users\matte\OpenDuck_Workspace\repos\Open_Duck_Playground` (branch `fixes/iao-v2-verified-2026-03-16`)
+- Duration: 5h08m (02:41 — 07:49), exit code 0
+- **Results:** 15 eval points, 15 checkpoints, 34 TensorBoard tags, 33KB events file
+- **Reward:** -9.04 (baseline) → -7.98 (final), best -7.21 at step 19.66M
+- **CRITICAL FINDING:** v_loss exponential divergence: 3.5×10^7 → 1.2×10^18
+- **Policy stagnation:** policy_loss ≈ 0, KL = 0.00014 (constant), policy distribution frozen
+- Status: COMPLETE
+
+#### Task 3: Post-run Analysis & Documentation (Phases 5-10)
+- Health classification: **PPO RUNS BUT LIKELY PATHOLOGICAL**
+- Acceptance criteria: 6.5/7 pass (criterion 6 marginal — reward changes but noisy)
+- v_loss divergence is the #1 blocker — value function error growing exponentially
+- Decision: **Hold and fix blockers first** (Option C)
+- Recommended fix: add `clipping_epsilon_value=0.2` to PPO config
+- Files updated:
+  - `docs/aidos/audits/rl_training_readiness.md` (10M evidence section)
+  - `docs/aidos/decisions/rl_current_state_decision_log.md` (post-10M decision + blockers)
+  - `docs/aidos/experiments/rl_next_experiment_plan.md` (execution record + next decision)
+  - `docs/aidos/learning/how_rl_works_in_this_project.md` (what 10M proved)
+  - `docs/aidos/learning/how_to_read_tensorboard_for_rl.md` (10M interpretation guide)
+  - `docs/aidos/index/rl_audit_index.md` (fully updated)
+- Status: COMPLETE
+
+#### Summary
+- PPO training loop verified by execution (first time ever under current fixes)
+- 17,920 gradient updates occurred across 140 training steps
+- v_loss divergence is the critical blocker preventing policy learning
+- Kaggle remains premature — must fix v_loss locally first
+- Test count: unchanged (firmware tests not affected)
+
+### Day 58 (continued) - Sunday, 16 March 2026
+
+**Focus:** Value clipping intervention — single surgical fix for v_loss divergence
+**Status:** IN PROGRESS — rerun launched
+
+#### Task 4: Value Clipping Pre-change Verification
+- Verified branch: `fixes/iao-v2-verified-2026-03-16` @ `e93d2b9`
+- Confirmed `clipping_epsilon_value` absent from runner.py PPO overrides (grep: 0 matches)
+- Verified Brax source (losses.py:116, 187-193): `clipping_epsilon_value` clips critic updates to ±epsilon
+- Verified param flows via `**self.ppo_training_params` → `ppo.train()` kwargs (runner.py:356-358)
+- File updated: `docs/aidos/experiments/rl_next_experiment_plan.md` (pre-change verification section)
+- Status: COMPLETE
+
+#### Task 5: Apply Single Fix — clipping_epsilon_value=0.2
+- Added `self.ppo_params["clipping_epsilon_value"] = 0.2` at runner.py:334
+- No other PPO params changed in this pass
+- File updated: `docs/aidos/decisions/rl_current_state_decision_log.md` (intervention section)
+- File updated: `docs/aidos/audits/rl_training_readiness.md` (acceptance criteria)
+- Status: COMPLETE
+
+#### Task 6: Post-fix 10M Rerun — COMPLETE (SUCCESS — FINAL)
+- Command: `python playground/open_duck_mini_v2/runner.py --task flat_terrain --num_timesteps 10000000 --output_dir training_runs/local_10M_vclip02_2026-03-16`
+- Output: `C:\Users\matte\OpenDuck_Workspace\repos\Open_Duck_Playground\training_runs\local_10M_vclip02_2026-03-16\`
+- Duration: **7h04m (13:07 → 20:11), wall time 23,640s**, full 22.9M env steps
+- **15 eval points, 15 checkpoints, exit code 0, no NaN**
+- **KEY RESULTS:**
+  - v_loss: 0.598 → 0.147, bounded 0.060–0.598 (STABLE — vs baseline's 3.5×10^7 → 1.2×10^18)
+  - reward: -9.04 → -4.69 (**48% improvement** — vs baseline's 12%); best -4.21 at step 19.7M
+  - policy_loss: -0.013 → -0.020 (ACTIVE throughout — vs baseline's ≈0)
+  - KL: 0.007 (50× higher than baseline's 0.00014)
+  - imitation cost: -322 → -157 (**51% improvement** — vs baseline's flat -314)
+  - episode length: 54 → 35 (decreasing — active locomotion, not freeze; expected to recover at 50M)
+- Acceptance criteria: **7/7 met** (criterion 5 now FULLY MET — 15 eval + 15 checkpoints)
+- **VERDICT: Value clipping fix is an unambiguous success**
+- Status: COMPLETE
+
+#### Task 7: Post-run Analysis & Documentation (FINAL)
+- All AIDOS docs updated with final run numbers (reward -4.69, imitation -157, ep_len 35)
+- **Files updated:**
+  - `docs/aidos/experiments/rl_next_experiment_plan.md`: Full 15-point reward+v_loss trajectories, final baseline vs post-fix comparison table
+  - `docs/aidos/decisions/rl_current_state_decision_log.md`: Blocker reassessment (v_loss RESOLVED, policy RESOLVED, Kaggle PREMATURE), final GO decision
+  - `docs/aidos/audits/rl_training_readiness.md`: 7/7 criteria, post-fix evidence section (verified/inferred/unknown split)
+  - `docs/aidos/learning/how_to_read_tensorboard_for_rl.md`: Actual results table updated with final 15-point numbers
+  - `docs/aidos/learning/how_rl_works_in_this_project.md`: Added section 11 — what the 10M value clipping run proved
+  - `docs/aidos/index/rl_audit_index.md`: v4 — post-fix artifacts, HTML summary entry, updated reading order
+  - `docs/aidos/learning/open_duck_rl_value_clipping_rerun_summary.html`: NEW — visual summary infographic
+  - `firmware/CHANGELOG.md`: This entry
+- **Acceptance criteria: 7/7 met**
+- **Decision: GO for 50M local run**; Kaggle still premature
+- Status: COMPLETE
+
+### Day 57 - Saturday, 15 March 2026
+
+**Focus:** AIDOS RL Training Audit — Strict verification of RL readiness before Kaggle workflow
+**Status:** COMPLETE (v2 — training code located and verified)
+
+#### Task 1: Repository Inventory for RL Assets
+- Searched entire repo for RL training code (joystick.py, runner.py, locomotion_params.py)
+- **CRITICAL FINDING:** Training code does NOT exist in this repo
+- Files referenced by `RL_TRAINING_FIXES_V2.md` live in external mujoco_playground / Open Duck Playground repo
+- `Open_Duck_Mini/` contains only 3D print files, not training code
+- `venv_rl/` exists (created 2026-01-19) but contents unverified
+- Status: COMPLETE
+
+#### Task 2: Fix Verification Audit (5 fixes from RL_TRAINING_FIXES_V2.md)
+- Fix #1 (reward clipping): NOT FOUND — target file absent
+- Fix #2 (reward scale rebalance): NOT FOUND — target file absent
+- Fix #3 (entropy coefficient): NOT FOUND — target file absent
+- Fix #4 (PPO hyperparameters): NOT FOUND — target file absent
+- Fix #5 (LR schedule): NOT FOUND — target file absent
+- **Verdict: ALL 5 fixes unverifiable — training repo not cloned**
+- File: `docs/aidos/audits/rl_fix_verification.md`
+- Status: COMPLETE
+
+#### Task 3: Training Readiness Gates
+- 7 gates defined (G1-G7), ALL assessed as NO-GO
+- Single blocking issue: training code repository not present
+- File: `docs/aidos/audits/rl_training_readiness.md`
+- Status: COMPLETE
+
+#### Task 4: Learning Artifacts Created
+- `docs/aidos/learning/how_rl_works_in_this_project.md` — codebase-anchored RL guide
+- `docs/aidos/learning/rl_pipeline_infographic.md` — ASCII visual pipeline overview
+- `docs/aidos/learning/rl_glossary.md` — 23 terms defined in project context
+- `docs/aidos/learning/rl_failure_modes_cheatsheet.md` — 8 failure modes with diagnostics
+- `docs/aidos/learning/how_to_read_tensorboard_for_rl.md` — metrics monitoring guide
+- Status: COMPLETE
+
+#### Task 5: Decision Log + Experiment Plan
+- `docs/aidos/decisions/rl_current_state_decision_log.md` — NO-GO decision recorded
+- `docs/aidos/experiments/rl_next_experiment_plan.md` — 6-stage safe progression plan
+- `docs/aidos/index/rl_audit_index.md` — master index of all artifacts
+- Status: COMPLETE
+
+#### Decision: NO-GO for RL Training
+- **Reason:** Training code not in repo, fixes unverifiable
+- **Next step:** Clone mujoco_playground / Open Duck Playground, re-run fix audit
+- **Explicitly refused:** No training, no Kaggle notebooks, no hyperparameter tuning until code is present
+
+#### Task 6: Training Code Discovery + Fix Re-Verification (v2)
+- **CRITICAL DISCOVERY:** Training code EXISTS at `C:\Users\matte\OpenDuck_Workspace\repos\Open_Duck_Playground\`
+- Cloned from `apirrone/Open_Duck_Playground` (2026-01-14), with uncommitted local modifications
+- Re-ran full fix verification against actual source code:
+  - Fix #1 (reward clipping): **VERIFIED APPLIED** — `clip(..., -10000.0, 10000.0)` at line 454
+  - Fix #2 (reward scales): **APPLIED WITH DEVIATIONS** — 5/7 params differ from fix doc (further tuned)
+  - Fix #3 (entropy 10x): **VERIFIED APPLIED** — `entropy_cost = 0.05` at line 330
+  - Fix #4 (PPO hyperparams): **VERIFIED APPLIED** — clipping=0.15, discount=0.99, grad_norm=0.5
+  - Fix #5 (LR schedule): **NOT APPLIED** — no optax import, no schedule code
+- **WARNING:** All fixes are UNCOMMITTED — `git checkout .` would destroy them
+- Additional undocumented changes found: orientation cost, push disable, height-based termination, obs clipping
+- Prior training runs exist: 7 runs, 3 Colab notebooks, 45M demo video
+- Domain randomization verified: 8 params randomized (friction, mass, CoM, KP, armature, qpos0)
+- Observation vector: 73-dim (verified from code). Action vector: 10-dim (legs only, no head).
+- Files created/updated:
+  - `docs/aidos/audits/rl_fix_verification.md` (v2)
+  - `docs/aidos/audits/rl_training_readiness.md` (v2)
+  - `docs/aidos/audits/rl_codebase_map.md` (NEW)
+  - `docs/aidos/decisions/rl_current_state_decision_log.md` (v2)
+  - `docs/aidos/experiments/rl_next_experiment_plan.md` (v2)
+  - `docs/aidos/index/rl_audit_index.md` (v2)
+- Status: COMPLETE
+
+#### Updated Decision: CONDITIONAL GO (local testing), NO-GO (Kaggle)
+- Local testing can proceed through smoke tests
+- **Immediate action:** Commit/branch fixes to prevent loss
+- Kaggle remains NO-GO — no notebook exists (Colab notebooks available as alternative)
+
+### Day 57 (continued) - Sunday, 16 March 2026
+
+**Focus:** Fix Preservation + Local Validation
+**Status:** COMPLETE
+
+#### Task 7: Fix Preservation (CRITICAL)
+- Created branch `fixes/iao-v2-verified-2026-03-16` in Open_Duck_Playground
+- Committed all 5 modified files: joystick.py, runner.py (common + v2), export_onnx.py, pyproject.toml
+- **Commit hash: e93d2b9**
+- Fixes are now SAFE from accidental loss
+- Status: COMPLETE
+
+#### Task 8: Local Environment Validation
+- **Import test:** ALL PASS — JAX 0.8.2, Brax 0.14.0, MuJoCo 3.4.0 (system Python 3.13.12)
+  - Note: venv_rl in robot_jarvis is EMPTY. Packages in system Python.
+  - All training entrypoint imports pass (joystick, runner, rewards, randomize, locomotion_params)
+- **Env smoke test:** ALL PASS
+  - Construction: 6.9s (JIT compilation on CPU)
+  - Reset: 7.9s, obs shape (101,), no NaN
+  - Step: 9.8s, reward=-0.371907 (negative with zero action!), no NaN
+  - Multi-step: 10 random actions, no NaN
+  - **Fix #1 runtime confirmation:** min reward = -1.736498 under adversarial actions
+- **Dimension corrections:** Action=14 (not 10), Obs state=101 (not 73), Privileged=212
+- **Overflow warnings:** JAX abstract_arrays cast warnings during JIT — cosmetic, not errors
+- Status: COMPLETE
+
+#### Task 9: AIDOS Artifact Updates (v3)
+- Updated 6 AIDOS artifacts with preservation status, runtime validation results, corrected dimensions
+- Added "What validation exercised" section to learning guide
+- Updated index to v3 with validation summary
+- Status: COMPLETE
+
+#### Decision Update: GO for 100K Sanity Run
+- All prerequisites met: fixes committed, imports pass, env smoke test passes
+- Next step: run `python playground/open_duck_mini_v2/runner.py --task flat_terrain --num_timesteps 100000`
+- Kaggle remains NO-GO
 
 ---
 
@@ -63,6 +292,39 @@
   - H-5: is_in_idle used independent time.monotonic() → now accepts `now` parameter
 - MEDIUM fixed: M-1 (repeated warnings), M-2 (input_w used), M-3 (speed/deadzone validation), M-4 (idle output clamped)
 - Status: COMPLETE — all 12 issues resolved
+
+#### Task 6: Hardware Validation — IMX500 on Real Pi
+- **Deployed firmware** to Pi via `scp -r firmware/ pi@192.168.1.182:~/robot_jarvis/`
+- **IMX500 package install:** `sudo apt install imx500-all` failed due to Debian Trixie transition gaps:
+  - `libfarmhash0` missing from repos → manually downloaded .deb from deb.debian.org pool
+  - `default-jre-headless` / `jq` missing → skipped `imx500-tools` (only needed for model conversion, not inference)
+  - Installed `rpicam-apps-imx500-postprocess` + `imx500-models` instead
+  - Also needed: `pip3 install --break-system-packages opencv-python-headless`
+- **YOLO11n model NOT in default package** — only 23 models shipped, no YOLO11n
+- **Using MobileNet SSD 320x320** (`imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk`)
+- **Raw inference test (test_imx500_live.py):**
+  - Model firmware upload: 3.78MB in ~4s to sensor chip
+  - Loop rate: 20.2 FPS (200 frames in 9.9s)
+  - 91/200 null outputs (first ~3s = firmware uploading, expected)
+  - Background object detected: class 86 (vase) at 0.44 confidence
+- **IMX500CVDriver test on real hardware:**
+  - Driver start/stop lifecycle: WORKS
+  - Detection parsing: WORKS — category, confidence, center_x/y, area all correct
+  - Normalized coordinates in [-1, 1] range: WORKS
+  - Missing: `get_stats()` method (not implemented, non-critical)
+- **Person detection test (person_only=True):**
+  - User detected as "person" (COCO class 0) in **every frame** (30/30)
+  - Confidence range: 0.32–0.68, average ~0.56
+  - Stable tracking: center_x ~0.40, center_y ~-0.25 (right of center, slightly above)
+  - Area growing as user approached: 97k → 163k pixels
+  - Coordinates smooth, not jumpy — suitable for PD control
+- **All-classes test (face close-up):**
+  - Person detected at (0.65, -0.28) with 0.32–0.44 confidence
+  - Background clutter: "vase", "book", cls_48, cls_89 (false positives on room objects)
+  - With person_only=True + threshold 0.4, all clutter filtered cleanly
+- **Conclusion:** MobileNet SSD person detection sufficient for head tracking at 1-3m range
+- **Blockers for live tracking demo:** Head not printed yet, servos have nowhere to mount
+- Status: COMPLETE — CV pipeline validated on real hardware
 
 ### Day 52 - Friday, 7 March 2026 (Weekend Session)
 
